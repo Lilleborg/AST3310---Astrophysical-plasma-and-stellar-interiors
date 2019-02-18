@@ -1,8 +1,10 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp2d
+import sys
+sys.path.append("../project_0")
 
-from engine import stellar_engine
+from engine import stellar_engine,test_engine_1,test_engine_2
 import Solar_parameters as Sun
 
 # Plotting style
@@ -20,7 +22,7 @@ class my_stellar_core():
     c = 2.998e8                 # speed of light [m s^-1]
     a = 4*sigma/c               # From app. A [J m^-3 K^-4]
 
-    def __init__(self,sanity=False,debug=False):
+    def __init__(self,debug=False):
         
         ### Initial parameters at bottom of solar convection zone
         ## Fixed parameters
@@ -44,7 +46,6 @@ class my_stellar_core():
 
         ### Control and program flow parameters
         self.has_read_opacity_file = False
-        self.sanity = sanity
         self.debug = debug
 
     def read_opacity(self,filename='opacity.txt'):
@@ -53,14 +54,15 @@ class my_stellar_core():
         Stores the cgs values log(R) [g cm^-3]  ?? Also [T^-3]??
         Log(T) in 1d arrays [K]
         Stores the cgs kappa values in a 2d array [cm^2 g^-1]
-        
         Creates the function log_kappa_interp2d in cgs units to be used in get_opacity()
         """
         log_R = np.genfromtxt(filename,skip_footer=70)[1:]
         log_T = np.genfromtxt(filename,skip_header=2,usecols=0)
         log_kappa = np.genfromtxt(filename,skip_header=2, usecols=range(1,20))
 
-        self.log_kappa_interp2d = interp2d(log_R,log_T,log_kappa)
+        #print(log_R.shape,log_T.shape,log_kappa.shape)
+
+        self.log_kappa_interp2d = interp2d(log_R,log_T,log_kappa,kind='linear')
         self.has_read_opacity_file = True
 
     def get_opacity(self,T,rho):
@@ -68,7 +70,6 @@ class my_stellar_core():
         Uses the interpolated log_kappa function from read_opacity() and input
         @ T - temperate in [K]
         @ rho - density in [kg m^-3]
-        
         calculates log_R from input args
 
         Returns the opacity values kappa in [m^2kg^-1]
@@ -99,14 +100,19 @@ class my_stellar_core():
 
         return (P/T - self.a/3*T**3)*constant
 
-    # ------------- Sanity checks -------------#
+    # ------------- Sanity checks ------------- #
     def comparing_table(self,computed,expected):
         """ Helper function for comparing quantities computed vs expected in a table """
         print('{:^11s}|{:^11s}|{:^11s}'.format('Computed','Expected','Rel. error'))
         print('-'*35)
-        for c,e in zip(computed,expected):
-            rel_error = np.abs((e-c)/e)
-            print('{:^11.3f}|{:^11.3f}|{:^11.6f}'.format(c,e,rel_error))
+        try:
+            for c,e in zip(computed,expected):
+                rel_error = np.abs((e-c)/e)
+                print('{:^11.3e}|{:^11.3e}|{:^11.6f}'.format(c,e,rel_error))
+
+        except TypeError:   # If computed and expected is not iterable (e.i. floats)
+            rel_error = np.abs((expected-computed)/expected)
+            print('{:^11.3e}|{:^11.3e}|{:^11.6f}'.format(computed,expected,rel_error))
         print('-'*35)
 
     def opacity_sanity(self):
@@ -117,19 +123,6 @@ class my_stellar_core():
         # Values from the table
         log_R = np.array([6.,5.95,5.8,5.7,5.55,5.95,5.95,5.95,5.8,5.75,5.7,5.55,5.5])*-1
         log_T = np.array([3.75,3.755,3.755,3.755,3.755,3.77,3.78,3.795,3.77,3.775,3.78,3.795,3.8])
-    
-        log_k_cgs = np.array([1.55,1.51,1.57,1.61,1.67,1.33,1.2,1.02,1.39,1.35,1.31,1.16,1.11])*-1
-        k_SI = np.array([2.84,3.11,2.68,2.46,2.12,4.7,6.25,9.45,4.05,4.43,4.94,6.89,7.69])*1e-3
-
-        computed_cgs = self.log_kappa_interp2d(log_R,log_T).diagonal()
-        computed_SI = 10**computed_cgs*1e-1
-
-        print('Directly from interpolation')
-        print('\nlog cgs:')
-        self.comparing_table(computed_cgs,log_k_cgs)
-    
-        print('\nSI:')
-        self.comparing_table(computed_SI,k_SI)
 
         # Values for testing get opacity
         T = 10**log_T
@@ -138,26 +131,51 @@ class my_stellar_core():
         rho_cgs = R*(T/1e6)**3
         rho_SI = rho_cgs*1e3
 
-        i = 0
-        for rho_,T_ in zip(rho_SI,T):
-            result = self.get_opacity(T_,rho_)
-            computed_SI[i] = result
-            i+=1
+        log_k_cgs = np.array([1.55,1.51,1.57,1.61,1.67,1.33,1.2,1.02,1.39,1.35,1.31,1.16,1.11])*-1
+        k_SI = np.array([2.84,3.11,2.68,2.46,2.12,4.7,6.25,9.45,4.05,4.43,4.94,6.89,7.69])*1e-3
 
-        print('\nThrough get_opacity()')
-        print('\nSI:')
+        N = len(log_R)
+        computed_cgs = np.zeros(N)
+        computed_SI = np.zeros(N)
+        computed_get_opacity = np.zeros(N)
+
+        for i in range(N):
+            computed_cgs[i] = self.log_kappa_interp2d(log_R[i],log_T[i])
+            computed_get_opacity[i] = self.get_opacity(T[i],rho_SI[i])
+        computed_SI = 10**computed_cgs*1e-1
+
+        print('Directly from interpolation \nlog cgs:')
+        self.comparing_table(computed_cgs,log_k_cgs)
+        print('SI:')
+        self.comparing_table(computed_SI,k_SI)
+        print('\nThrough get_opacity() (SI-units)')
         self.comparing_table(computed_SI,k_SI)
 
-    def EOS_sanity():
-        pass
-
-
-
+    def EOS_sanity(self):
+        """ Checks that the equation of state functions work both ways """
+        expected_rho0 = self.rho0
+        T0 = self.T0
         
+        computed_P = self.P_EOS(expected_rho0,T0)
+        computed_rho = self.rho_EOS(computed_P,T0)
+
+        print('Density EOS')
+        self.comparing_table(computed_rho,expected_rho0)
+
+        expected_P0 = 5.2e14    # From app. A [Pa]
+
+        computed_P = self.P_EOS(computed_rho,T0)
+
+        print('Pressure EOS')
+        self.comparing_table(computed_P,expected_P0)
 
 
 if __name__ == '__main__':
     
     Star = my_stellar_core()
-    Star.read_opacity()
-    Star.opacity_sanity()
+    
+    if len(sys.argv) > 1:
+        if sys.argv[1] == 'sanity' or sys.argv[1] == 'Sanity':
+            Star.opacity_sanity()
+            Star.EOS_sanity()
+    #Star.EOS_sanity()

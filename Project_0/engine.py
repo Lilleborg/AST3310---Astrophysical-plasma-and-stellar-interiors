@@ -3,7 +3,7 @@ import numpy as np
 
 class stellar_engine:
 
-    def __init__(self,rho,T):
+    def __init__(self,rho,T,project0 = True):
 
         ### Input arguments
         self.rho = rho              # density
@@ -21,7 +21,11 @@ class stellar_engine:
 
         ## Mass fractions and particle numbers:
         X = 0.7; Y = 0.29; Z = 0.01
-        Y_3 = 1e-10; Z_Li = 1e-7; Z_Be = 1e-7
+        Y_3 = 1e-10
+        if project0:
+            Z_Li = 1e-7; Z_Be = 1e-7
+        else:
+            Z_Li = 1e-13; Z_Be = 1e-13
         #----------------------#
 
         ## Particle numbers:
@@ -115,11 +119,7 @@ class stellar_engine:
             total_energy = e_pp+e_33+e_34+e_e7+e_17_+e_17
             return total_energy
 
-
-
-if __name__ == '__main__':
-    
-    def test_engine_1():
+def test_engine_1():
 
         goals = np.array([4.04e2,1.94e-6,4.88e-5,1.53e-6,5.29e-4,1.57e-6])
         
@@ -140,26 +140,27 @@ if __name__ == '__main__':
             print('{:^11.3e}|{:^11.3e}|{:^11.6f}'.format(r,g,rel_error))
         print(35*'-')
 
-    def test_engine_2():
+def test_engine_2():
 
-        goals = np.array([7.33e4,1.3e1,1.72e4,1.26e-3,4.35e-1,1.21e5])
+    goals = np.array([7.33e4,1.3e1,1.72e4,1.26e-3,4.35e-1,1.21e5])
 
-        rho = 1.62e5
-        T = 10**8
+    rho = 1.62e5
+    T = 10**8
 
-        test = stellar_engine(rho,T)
-        results = np.asarray(test.energy_production(sanity=True))*rho
+    test = stellar_engine(rho,T)
+    results = np.asarray(test.energy_production(sanity=True))*rho
 
-        header = 'T = {:.2e}'.format(T)
-        print('{:^35s}'.format(header))
-        print(35*'-')
+    header = 'T = {:.2e}'.format(T)
+    print('{:^35s}'.format(header))
+    print(35*'-')
 
-        print('{:^11s}|{:^11s}|{:^11s}'.format('Computed','Goal','Relative error'))
-        for r,g in zip(results,goals):
-            rel_error = np.abs((g-r)/g)
-            print('{:^11.3e}|{:^11.3e}|{:^11.6f}'.format(r,g,rel_error))
-        print(35*'-')
+    print('{:^11s}|{:^11s}|{:^11s}'.format('Computed','Goal','Relative error'))
+    for r,g in zip(results,goals):
+        rel_error = np.abs((g-r)/g)
+        print('{:^11.3e}|{:^11.3e}|{:^11.6f}'.format(r,g,rel_error))
+    print(35*'-')
 
+if __name__ == '__main__':
     test_engine_1()
     test_engine_2()
 

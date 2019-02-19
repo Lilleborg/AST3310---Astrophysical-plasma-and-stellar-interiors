@@ -21,6 +21,7 @@ class my_stellar_core():
     sigma = 5.67e-8             # From app. A [W m^-2 K^-4]
     c = 2.998e8                 # speed of light [m s^-1]
     a = 4*sigma/c               # From app. A [J m^-3 K^-4]
+    G = 6.672e-11               # Gravitational constant [N m^2 kg^-2]
 
     def __init__(self,debug=False):
         
@@ -99,6 +100,28 @@ class my_stellar_core():
         constant = self.mu_0*self.m_u/self.k_B  # Algebraic term
 
         return (P/T - self.a/3*T**3)*constant
+
+    def ODE_solver(self,variable_step=False):
+
+
+        ### List for storing integration values for each variable
+        # ---------------- #
+        r = [self.R0]
+        P = [self.P_EOS(self.rho0,self.T0)]
+        L = [self.L0]
+        T = [self.T0]
+
+        # Aslo need to update the density, energy production and mass
+        rho = [self.rho0]
+        M = [self.M0]
+        engine = stellar_engine(rho[0],T[0])   # Energy production object (not the cleanest way of doing this...)
+        eps = [engine()]
+        # ---------------- #
+
+        ### Integration loop using Euler
+        
+
+
 
     # ------------- Sanity checks ------------- #
     def comparing_table(self,computed,expected):

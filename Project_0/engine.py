@@ -3,7 +3,7 @@ import numpy as np
 
 class stellar_engine:
 
-    def __init__(self,rho,T,project0 = True):
+    def __init__(self,rho,T,project0 = False):
 
         ### Input arguments
         self.rho = rho              # density
@@ -74,7 +74,7 @@ class stellar_engine:
         self.Q_17 = (0.14 + 1.02 + 6.88 + 3.00)*MeV     #missing 1.59?
         
 
-    def energy_production(self,sanity=False):
+    def __call__(self,sanity=False):
 
         ## Initial production rate values
         # Base reaction
@@ -127,8 +127,8 @@ def test_engine_1():
         T = 1.57e7
        
         
-        test = stellar_engine(rho,T)
-        results = np.asarray(test.energy_production(sanity=True))*rho
+        test = stellar_engine(rho,T,project0=True)
+        results = np.asarray(test(sanity=True))*rho
 
         header = 'T = {:.2e}'.format(T)
         print('{:^35s}'.format(header))
@@ -147,8 +147,8 @@ def test_engine_2():
     rho = 1.62e5
     T = 10**8
 
-    test = stellar_engine(rho,T)
-    results = np.asarray(test.energy_production(sanity=True))*rho
+    test = stellar_engine(rho,T,project0=True)
+    results = np.asarray(test(sanity=True))*rho
 
     header = 'T = {:.2e}'.format(T)
     print('{:^35s}'.format(header))

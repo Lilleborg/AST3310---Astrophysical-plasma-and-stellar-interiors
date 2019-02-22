@@ -2,6 +2,29 @@ from numpy import exp as exp
 import numpy as np
 
 class stellar_engine:
+    ### Constants and values defined here for faster re-initialization of objects in loops
+    N_A = 6.022e23              # Avrogados number
+    MeV = 1.602e-13             # MeV in Joule
+    m_u = 1.66053904e-27        # Unit atomic mass
+    ## Reaction-energies in Joule
+    # Shared reaction
+    Q_pp = (1.02 + 0.15 + 5.49)*MeV
+
+    # PPI
+    Q_33 = 12.86*MeV
+
+    # PPII
+    Q_34 = 1.59*MeV
+    Q_e7 = 0.05*MeV
+    Q_17_ = 17.35*MeV
+
+    # PPIII
+    Q_17 = (0.14 + 1.02 + 6.88 + 3.00)*MeV     #missing 1.59?
+
+    ## Mass fractions and particle numbers:
+    X = 0.7; Y = 0.29; Z = 0.01
+    Y_3 = 1e-10
+    Z_Li = 1e-13; Z_Be = 1e-13
 
     def __init__(self,rho,T,project0 = False):
 
@@ -9,36 +32,25 @@ class stellar_engine:
         self.rho = rho              # density
         self.T = T                  # temperatur
 
-        ### Constants and values
-        #----------------------#
         T90 = T/1e9                 # Scaled temperatures used in lambdas below
         T91 = T90/(1+4.95e-2*T90)
         T92 = T90/(1+0.759*T90)
-
-        N_A = 6.022e23              # Avrogados number
-        MeV = 1.602e-13             # MeV in Joule
-        m_u = 1.66053904e-27        # Unit atomic mass
-
-        ## Mass fractions and particle numbers:
-        X = 0.7; Y = 0.29; Z = 0.01
-        Y_3 = 1e-10
-        if project0:
-            Z_Li = 1e-7; Z_Be = 1e-7
-        else:
-            Z_Li = 1e-13; Z_Be = 1e-13
-        #----------------------#
+        
+        if project0: # Used for sanity check from app. C
+            print('Fractions of Lithium and Berilium from app. C used!')
+            self.Z_Li = 1e-7; self.Z_Be = 1e-7
 
         ## Particle numbers:
-        self.n_p = rho*X/m_u
-        self.n_He3 = rho*Y_3/(3*m_u)
-        self.n_He4 = rho*(Y-Y_3)/(4*m_u)
-        self.n_Li7 = rho*Z_Li/(7*m_u)
-        self.n_Be7 = rho*Z_Be/(7*m_u)
+        self.n_p = rho*self.X/self.m_u
+        self.n_He3 = rho*self.Y_3/(3*self.m_u)
+        self.n_He4 = rho*(self.Y-self.Y_3)/(4*self.m_u)
+        self.n_Li7 = rho*self.Z_Li/(7*self.m_u)
+        self.n_Be7 = rho*self.Z_Be/(7*self.m_u)
         #self.n_e = rho*(X + 2./3*Y_3+0.5*(Y-Y_3)+Z_Li/7+2/7*Z_Be)/m_u
         self.n_e = self.n_p+2*self.n_He3+2*self.n_He4+0.5*7*self.n_Li7+0.5*7*self.n_Be7    
 
         ## Proportion functions, e.i. lambdas:
-        N_A_SI_convert = 1/N_A/1e6 # Scale tabulated values to lambdas in SI
+        N_A_SI_convert = 1/self.N_A/1e6 # Scale tabulated values to lambdas in SI
         self.l_pp = N_A_SI_convert * (4.01e-15 * T90**(-2/3) * exp(-3.380*T90**(-1/3)) * (1+0.123*T90**(1/3)+1.09*T90**(2/3)+0.938*T90))
 
         self.l_33 = N_A_SI_convert * (6.04e10 * T90**(-2/3) * exp(-12.276*T90**(-1/3))*(1+0.034*T90**(1/3)-0.522*T90**(2/3)-0.124*T90+0.353*T90**(4/3)+0.213*T90**(-5/3)))
@@ -52,26 +64,11 @@ class stellar_engine:
         self.l_17 = N_A_SI_convert * (3.11e5 * T90**(-2/3) * exp(-10.262*T90**(-1/3)) + 2.53e3 * T90**(-3/2) * exp(-7.306*T90**(-1)))
 
         if self.T < 1e6:    # Check if upper electron capture limit is needed
-            if self.l_e7 > 1.57e-7/N_A/self.n_e:
+            if self.l_e7 > 1.57e-7/self.N_A/self.n_e:
                 print('Upper electron capture limit used!')
-                self.l_e7 = 1.57e-7/N_A/self.n_e
+                self.l_e7 = 1.57e-7/self.N_A/self.n_e
         
         #print ('lambdas\n',self.l_pp,self.l_33,self.l_34,self.l_e7,self.l_17_,self.l_17)
-        
-        ## Reaction-energies in Joule
-        # Shared reaction
-        self.Q_pp = (1.02 + 0.15 + 5.49)*MeV
-
-        # PPI
-        self.Q_33 = 12.86*MeV
-
-        # PPII
-        self.Q_34 = 1.59*MeV
-        self.Q_e7 = 0.05*MeV
-        self.Q_17_ = 17.35*MeV
-
-        # PPIII
-        self.Q_17 = (0.14 + 1.02 + 6.88 + 3.00)*MeV     #missing 1.59?
         
 
     def __call__(self,sanity=False):
@@ -125,7 +122,6 @@ def test_engine_1():
         
         rho = 1.62e5
         T = 1.57e7
-       
         
         test = stellar_engine(rho,T,project0=True)
         results = np.asarray(test(sanity=True))*rho

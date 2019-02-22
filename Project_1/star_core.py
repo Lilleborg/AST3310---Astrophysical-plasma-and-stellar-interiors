@@ -176,7 +176,7 @@ class my_stellar_core():
         # Vary the given parameter from 0.2 to 1.5 of initial value in this loop
         for scale in np.linspace(low,high,nr):
             attributes[Q] = scale*original_value
-            solutions.append(self.ODE_solver(variable_step=False))
+            solutions.append(self.ODE_solver(variable_step=True))
         #print(original_value)
         attributes[Q] = original_value  # Set the self.parameter value back to original for fourther testing   
         self.plot_set_of_solutions(solutions,filename='test_change_'+Q+'.pdf',show=False,multible_parameters=Q)
@@ -192,41 +192,41 @@ class my_stellar_core():
         @ filename - bool; if not 0 the figure get save using filename in directory ./plots/
         """
         # Set up axes and fig objects
-        fig, ((Rax,emptyax),(Tax,Lax),(Pax,Dax)) = plt.subplots(3,2,figsize = (14,8),sharex='col')
-        
-        emptyax.remove()    # Don't display the [0,1] axes
+        fig, ((Pax,Lax,emptyax),(Rax,Tax,Dax)) = plt.subplots(2,3,figsize = (14,8),sharex='col')
+
+        emptyax.remove()    # Don't display the [0,2] axes
 
         # Set up each axis object
         Rax.set_title('Radius vs mass')
         Rax.set_ylabel(r'$R/R_{sun}$')
+        Rax.set_xlabel(r'$M/M_{sun}$')
         
         Lax.set_title('Luminosity vs mass')
         Lax.set_ylabel(r'$L/L_{sun}$')
 
         Tax.set_title('Temperature vs mass')
         Tax.set_ylabel(r'$T[MK]$')
+        Tax.set_xlabel(r'$M/M_{sun}$')
 
         Dax.set_title('Density vs mass')
         Dax.set_ylabel(r'$\rho/\rho_{sun}$')
         Dax.set_xlabel(r'$M/M_{sun}$')
-        #Dax.set_ylim(1,10)
         
         Pax.set_title('Pressure vs mass')
         Pax.set_ylabel(r'$P [PPa]$')
-        Pax.set_xlabel(r'$M/M_{sun}$')
 
         for set_of_solutions in params:
             r,L,T,P,rho,eps,M = set_of_solutions
             scaled_mass = M/Sun.M
 
-            Rax.plot(scaled_mass,r/Sun.R,label=r'$\frac{R0}{R_{sun}}$'+' = {:.2f}'.format(r[0]/Sun.R))
-            Lax.plot(scaled_mass,L/Sun.L)#,label='L0 = {:.2e}'.format(L[-1]))
-            Tax.plot(scaled_mass,T*1e-6,label=r'$T0[MK]$ = {:.2f}'.format(T[0]*1e-6))
-            Dax.semilogy(scaled_mass,rho/Sun.rho_avg,label=r'$\frac{\rho 0}{\rho_{Sun,avg}}$'+' = {:.2f}'.format(rho[0]/Sun.rho_avg))
-            Pax.plot(scaled_mass,P*1e-15)#,label='P0 = {:.2e}'.format(P[-1]))
+            Rax.plot(scaled_mass,r/Sun.R,label=r'$R0 = {:.2f}R_\odot$'.format(r[0]/Sun.R))
+            Lax.plot(scaled_mass,L/Sun.L)
+            Tax.plot(scaled_mass,T*1e-6,label=r'$T0[MK] = {:.2f}$'.format(T[0]*1e-6))
+            Dax.semilogy(scaled_mass,rho/Sun.rho_avg,label=r'$\rho0 = {:.2f}\rho_\odot$'.format(rho[0]/Sun.rho_avg))
+            Pax.plot(scaled_mass,P*1e-15)
 
-        axes = [Rax,Tax,Dax]
         if multible_parameters == 0:
+            axes = [Rax,Tax,Dax]
             for ax in axes:
                 ax.legend()
         else:
@@ -242,9 +242,9 @@ class my_stellar_core():
                 fig.suptitle('Experimenting with different initial densities',size=30)
             else:
                 print('Labels not understood!')
-            fig.legend(handles, labels,loc='upper left', bbox_to_anchor=(0.55, 0.9),ncol=2)
+            fig.legend(handles, labels,loc='center',bbox_to_anchor=(4/5, 3/4))
 
-        fig.tight_layout(rect=[0, 0.03, 1, 0.95])#h_pad=-0.5)
+        fig.tight_layout(rect=[0, 0.0, 1, 0.95],h_pad=0)
         if filename!=0:
             plt.savefig('./plots/'+filename)
         if show:
@@ -426,9 +426,9 @@ if __name__ == '__main__':
             sys.exit(1)
 
     #Star.plot_set_of_solutions(Star.ODE_solver(variable_step=True),show=True)
-    #Star.experiment_multiple_solutions('T')
+    Star.experiment_multiple_solutions('T')
     #Star.experiment_multiple_solutions('R',low=0.3,high=0.9,nr=6)
-    Star.experiment_multiple_solutions('rho',low=0.2,high=5)
+    #Star.experiment_multiple_solutions('rho',low=0.2,high=5)
     
     plt.show()
     

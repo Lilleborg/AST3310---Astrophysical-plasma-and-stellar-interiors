@@ -36,21 +36,21 @@ class my_stellar_core():
 
     def __init__(self,debug=False,filename='opacity.txt'):
         
-        ### Initial parameters at bottom of solar convection zone
-        ## Fixed parameters
-        self.L0 = 1*Sun.L           # Luminosity [W]
-        self.M0 = 0.8*Sun.M         # Mass [kg]
-
         # Mean molecular weight
         self.mu_0 = 1/(2*self.X + self.Y3 + 3/4*(self.Y-self.Y3) + 4/7*self.Z_Li + 5/7*self.Z_Be)
+        
+        # Initial parameters at bottom of solar convection zone
+        # Fixed parameters
+        self.L0 = 1*Sun.L           # Luminosity [W]
+        self.M0 = 0.8*Sun.M         # Mass [kg]
 
         # Loose parameters
         self.rho0 = 5.1*Sun.rho_avg # Average density [kg m^-3]
         self.T0 = 5.7e6             # Temperature [T]
         self.R0 = 0.72*Sun.R        # Radius [m]
-        #self.P0 = self.get_P_EOS(self.rho0,self.T0) # Pressure [Pa] found using equation of state
-
-        ### Control and program flow parameters
+        
+        # Control and program flow parameters
+        self.given_initial_params = {'L0':self.L0,'M0':self.M0,'rho0':self.rho0,'T0':self.T0}
         self.has_read_opacity_file = False
         self.debug = debug
         self.read_opacity(filename) # Calls read_opacity() in initialization
@@ -69,20 +69,26 @@ class my_stellar_core():
         Solves the system of differential equations using Forward Euler
         UTVID***
         """
+        def print_progress():
+            """ Quick function for printing progress """
+            print('\nAt iteration {:d}'.format(i))
+            print('dm  = {:.3e}'.format(dm))
+            print('M   = {:.3e}'.format(M[-1]))
+            print('R   = {:.3e}'.format(r[-1]))
+            print('L   = {:.3e}'.format(L[-1]))
+            print('T   = {:.3e}'.format(T[-1]))
+            print('P   = {:.3e}'.format(P[-1]))
+            print('rho = {:.3e}'.format(rho[-1]))
+            print('eps = {:.3e}\n'.format(epsilon[-1]))
+            
         engine = stellar_engine     # Create object for energy calculation
-        ### List for storing integration values for each variable, starting with initial values
+        # Lists for storing integration values for each variable, starting with initial values
         r = [self.R0]
         L = [self.L0]
         T = [self.T0]
         P = [self.get_P_EOS(self.rho0,self.T0)]
-        # if set_P0 != 0: # If P0 is not specified
-        #     P = [set_P0]
-        # else:
-        #     P = [self.get_P_EOS(self.rho0,self.T0)]
-
-        # print ('should be 0?',r[-1])
-        # print ('shoudl be 2?',self.debug)
-        # Aslo need to update the density, energy production and mass through the loop
+       
+        # Aslo need lists for the density, energy production and mass through the loop
         rho = [self.rho0]
         M = [self.M0]
         engine = stellar_engine(rho[0],T[0])   # Initialize engine with given rho and T
@@ -91,15 +97,17 @@ class my_stellar_core():
         diff_params = [r,L,T,P]                # List of parameters for diff. equations
         eq_params = [rho,epsilon]              # List of parameters found with own equations
 
-        dm = input_dm       # Step mass size
+        dm = input_dm       # Initial step mass size - changes if variable step length is active
         i = 0               # Keeping track of nr of iterations
-        p = 1e-3            # Variable step size fraction
-        broken = False      # Flow parameter, 
+        p = 1e-3            # Variable step size fraction tolerance
+        broken = False      # Flow control parameter
+        list_with_arrays = []         # Converting each list to arrays stored in the list arrays at the end
+
         print('Initial step size',dm,'in solar masses',dm/Sun.M)
 
-        while M[-1] > 0 and M[-1]+dm>0:   # Integration loop using Euler until mass reaches zero
+        while M[-1]>0 and M[-1]+dm>0:   # Integration loop using Euler until mass reaches zero
             # Finding right hand side values for diff eqs:
-            d_params = np.asarray(self.RHS_problem(M,diff_params,eq_params))
+            d_params = np.asarray(self.RHS_problem(M,diff_params,eq_params)) # d_params is the f in the variable.pdf 
             dr,dL,dT,dP = d_params  # Unpack for easier reading
 
             P.append(P[-1] + dm*dP)
@@ -116,50 +124,43 @@ class my_stellar_core():
             if variable_step:
                 # Getting an array with only the last elements of each parameter in diff_params
                 current_last_values = np.asarray([item[-1] for item in diff_params])
+                # To avoid overflow in division I set a minimum value on the d_params
+                if np.any(np.abs(d_params)<1e-35):     
+                    d_params[np.abs(d_params)<1e-35] = 1e-35  # POTENTIAL PROBLEM WHAT IF F IS NEGATIVE                
                 # Fractional change in variables
                 dV_V = np.abs(current_last_values/d_params)        
-                # If the change in any one variable is too high
+                # If the fractional change in any one variable is higher than the tolerance adjust dm
                 if np.any(dV_V>p):
                     dm = -np.min(np.abs(p*current_last_values/d_params))
-            i += 1
+                    if np.abs(dm)<1e20: # If the step size becomes too small break iterations
+                        break           # This takes care of too asymptotal behavior and stops the loop
 
             # Check for negative unphysical values
             current_last_values = np.asarray([item[-1] for item in diff_params+eq_params+[M]])
             if np.any(current_last_values<0):
-                print(25*'#')
-                print('Breaking at step {:d} with mass {:.3e} due to unphysical values'.format(i,M[-1]))
-                print('R   = {:.3e}'.format(r[-1]))
-                print('L   = {:.3e}'.format(L[-1]))
-                print('T   = {:.3e}'.format(T[-1]))
-                print('P   = {:.3e}'.format(P[-1]))
-                print('rho = {:.3e}'.format(rho[-1]))
-                print('eps = {:.3e}'.format(epsilon[-1]))
-                print('Returning values up to not including last!')
-                print(25*'#','\n')
+                print(25*'#','\nBreaking due to unphysical values')
+                print_progress()
+                print('Returning values up to not including last!\n',25*'#','\n')
                 broken = True
-                arrays = [] # Converting each list to arrays stored in the arrays-list
+                
                 for Q in diff_params + eq_params + [M]:
-                    arrays.append(np.asarray(Q[:-1]))
+                    list_with_arrays.append(np.asarray(Q[:-1]))
                 break
 
-        print('Final step size  ',dm,'in solar masses',dm/Sun.M)
+            if (i%1000 == 0):
+                print_progress()
+            i += 1
         
         if not broken:
             print('\n',25*'-')
             print('{:^25s}'.format('Final values of parameters'))
-            print('{:>13s} {:.4e}'.format('Radius =',r[-1]))
-            print('{:>13s} {:.4e}'.format('Luminosity =',L[-1]))
-            print('{:>13s} {:.4e}'.format('Temperature =',T[-1]))
-            print('{:>13s} {:.4e}'.format('Pressure =',P[-1]))
-            print('{:>13s} {:.4e}'.format('Density =',rho[-1]))
-            print('{:>13s} {:.4e}'.format('Epsilon =',epsilon[-1]))
-            print('{:^25s}'.format('after {:d} iterations'.format(i)))
+            print_progress()
             print(25*'-')
-            arrays = [] # Converting each list to arrays stored in the arrays-list
-            for Q in diff_params + eq_params + [M]:
-                arrays.append(np.asarray(Q))
 
-        return arrays   # Order: r,L,T,P,rho,epsilon,M
+            for Q in diff_params + eq_params + [M]:
+                list_with_arrays.append(np.asarray(Q))
+
+        return list_with_arrays   # Order: r,L,T,P,rho,epsilon,M
 
     def experiment_multiple_solutions(self,varying_parameter,low=0.5,high=1.5,nr=6):
         """
@@ -171,16 +172,20 @@ class my_stellar_core():
         attributes = self.__dict__      # dictionary of objects attributes, e.i. self.parameter
         original_value = attributes[Q]  # The original self.parameter value
         solutions = []                  # List for storing solutions
-        new_initial_values = []
-        #print(original_value)
+        #new_initial_values = []
+        
         # Vary the given parameter from 0.2 to 1.5 of initial value in this loop
         for scale in np.linspace(low,high,nr):
             attributes[Q] = scale*original_value
             solutions.append(self.ODE_solver(variable_step=True))
-        #print(original_value)
+        
         attributes[Q] = original_value  # Set the self.parameter value back to original for fourther testing   
         self.plot_set_of_solutions(solutions,filename='test_change_'+Q+'.pdf',show=False,multible_parameters=Q)
 
+
+
+    # --- Convenient functions and getters ---- #
+    # ----------------------------------------- #
     def plot_set_of_solutions(self,params,filename=0,show=False,multible_parameters=0):
         """
         Method for plotting a set of solutions for each parameter
@@ -189,10 +194,10 @@ class my_stellar_core():
                                                  where each set is a list of each parameter
                                                  makes it possible to plot multiple sets of solutions at once
         @ show - bool; show the figure or not at the end
-        @ filename - bool; if not 0 the figure get save using filename in directory ./plots/
+        @ filename - bool; if not 0 the figure get saved using filename in directory ./plots/
         """
         # Set up axes and fig objects
-        fig, ((Pax,Lax,emptyax),(Rax,Tax,Dax)) = plt.subplots(2,3,figsize = (14,8),sharex='col')
+        fig, ((Pax,Lax,emptyax),(Rax,Tax,Dax)) = plt.subplots(2,3,figsize = (14.3,8),sharex='col')
 
         emptyax.remove()    # Don't display the [0,2] axes
 
@@ -215,13 +220,15 @@ class my_stellar_core():
         Pax.set_title('Pressure vs mass')
         Pax.set_ylabel(r'$P [PPa]$')
 
+        g_i_p = self.given_initial_params   # Used for scaling in labels
+
         for set_of_solutions in params:
             r,L,T,P,rho,eps,M = set_of_solutions
             scaled_mass = M/Sun.M
 
             Rax.plot(scaled_mass,r/Sun.R,label=r'$R0 = {:.2f}R_\odot$'.format(r[0]/Sun.R))
             Lax.plot(scaled_mass,L/Sun.L)
-            Tax.plot(scaled_mass,T*1e-6,label=r'$T0[MK] = {:.2f}$'.format(T[0]*1e-6))
+            Tax.plot(scaled_mass,T*1e-6,label=r'$T0 = {:.2f} MK$'.format(T[0]*1e-6))
             Dax.semilogy(scaled_mass,rho/Sun.rho_avg,label=r'$\rho0 = {:.2f}\rho_\odot$'.format(rho[0]/Sun.rho_avg))
             Pax.plot(scaled_mass,P*1e-15)
 
@@ -242,16 +249,17 @@ class my_stellar_core():
                 fig.suptitle('Experimenting with different initial densities',size=30)
             else:
                 print('Labels not understood!')
-            fig.legend(handles, labels,loc='center',bbox_to_anchor=(4/5, 3/4))
+            
+            nrcols = 1
+            if len(handles)>7:
+                nrcols = 2
+            fig.legend(handles,labels,loc='upper left',bbox_to_anchor=((5-0.2)/7, 6/7),ncol=nrcols,columnspacing=0.1)
 
         fig.tight_layout(rect=[0, 0.0, 1, 0.95],h_pad=0)
         if filename!=0:
             plt.savefig('./plots/'+filename)
         if show:
             plt.show()
-
-    # --- Convenient functions and getters ---- #
-    # ----------------------------------------- #
     def read_opacity(self,filename='opacity.txt'):
         """
         Reads the file filename (default opacity.txt, dim 71x19) and interpolate the kappa values 
@@ -328,7 +336,7 @@ class my_stellar_core():
         test_object = my_stellar_core()
 
         # Set up axes and fig objects
-        fig, ((Rax,Lax),(Tax,Dax)) = plt.subplots(2,2,figsize = (14,8),sharex='all')
+        fig, ((Rax,Lax),(Tax,Dax)) = plt.subplots(2,2,figsize = (14.3,8),sharex='all')
 
         r,L,T,P,rho,eps,M = test_object.ODE_solver(variable_step=True)
         scaled_mass = M/Sun.M
@@ -406,7 +414,6 @@ class my_stellar_core():
         self.comparing_table(computed_rho,expected_rho0)
 
         expected_P0 = 5.2e14    # From app. A [Pa]
-
         computed_P = self.get_P_EOS(computed_rho,T0)
 
         print('Pressure EOS')
@@ -424,11 +431,18 @@ if __name__ == '__main__':
             Star.plot_sanity()
             print('Sanity checks done, exiting')
             sys.exit(1)
-
-    #Star.plot_set_of_solutions(Star.ODE_solver(variable_step=True),show=True)
-    Star.experiment_multiple_solutions('T')
-    #Star.experiment_multiple_solutions('R',low=0.3,high=0.9,nr=6)
-    #Star.experiment_multiple_solutions('rho',low=0.2,high=5)
+        if sys.argv[1] == 'experiment' or sys.argv[1] == 'Experiment':
+            # if len(sys.argv) > 2:
+            #     if 'T' in sys.argv[2:]:
+            #         Star.experiment_multiple_solutions('T',low=0.2,high=5,nr=8)
+            #     if 'R' in sys.argv[2:]:
+            #         Star.experiment_multiple_solutions('R',low=0.3,high=1.3,nr=8)
+            #     if 'rho' in sys.argv[2:]:
+            #         Star.experiment_multiple_solutions('rho',low=0.2,high=0.3,nr=8)
+            # else:
+            #Star.experiment_multiple_solutions('T',low=0.5,high=10,nr=4)
+            #Star.experiment_multiple_solutions('R',low=0.3,high=1.3,nr=8)
+            Star.experiment_multiple_solutions('rho',low=0.2,high=0.3,nr=8)
     
     plt.show()
     

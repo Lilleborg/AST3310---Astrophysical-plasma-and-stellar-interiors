@@ -103,11 +103,13 @@ class my_stellar_core():
         broken = False      # Flow control parameter
         list_with_arrays = []         # Converting each list to arrays stored in the list arrays at the end
 
-        print('Initial step size',dm,'in solar masses',dm/Sun.M)
+        #print('Initial step size',dm,'in solar masses',dm/Sun.M)
 
         while M[-1]>0 and M[-1]+dm>0:   # Integration loop using Euler until mass reaches zero
             # Finding right hand side values for diff eqs:
             d_params = np.asarray(self.RHS_problem(M,diff_params,eq_params)) # d_params is the f in the variable.pdf 
+            if np.all(np.abs(d_params)<1e-30):
+                break
             dr,dL,dT,dP = d_params  # Unpack for easier reading
 
             P.append(P[-1] + dm*dP)
@@ -121,23 +123,9 @@ class my_stellar_core():
             epsilon.append(engine())
             M.append(M[-1] + dm)
 
-            if variable_step:
-                # Getting an array with only the last elements of each parameter in diff_params
-                current_last_values = np.asarray([item[-1] for item in diff_params])
-                # To avoid overflow in division I set a minimum value on the d_params
-                if np.any(np.abs(d_params)<1e-35):     
-                    d_params[np.abs(d_params)<1e-35] = 1e-35  # POTENTIAL PROBLEM WHAT IF F IS NEGATIVE                
-                # Fractional change in variables
-                dV_V = np.abs(current_last_values/d_params)        
-                # If the fractional change in any one variable is higher than the tolerance adjust dm
-                if np.any(dV_V>p):
-                    dm = -np.min(np.abs(p*current_last_values/d_params))
-                    if np.abs(dm)<1e20: # If the step size becomes too small break iterations
-                        break           # This takes care of too asymptotal behavior and stops the loop
-
-            # Check for negative unphysical values
+            # Check for negative unphysical values or if all the derivatives are approx zero
             current_last_values = np.asarray([item[-1] for item in diff_params+eq_params+[M]])
-            if np.any(current_last_values<0):
+            if np.any(current_last_values<0) or np.all(np.abs(d_params)<1e-30):
                 print(25*'#','\nBreaking due to unphysical values')
                 print_progress()
                 print('Returning values up to not including last!\n',25*'#','\n')
@@ -147,7 +135,26 @@ class my_stellar_core():
                     list_with_arrays.append(np.asarray(Q[:-1]))
                 break
 
-            if (i%1000 == 0):
+
+            if variable_step:
+                # To avoid overflow in division I set a minimum value on the d_params
+                if np.any(np.abs(d_params)<1e-35):
+                    # Still have to take into account the sign of the value:
+                    for i,d_value in enumerate(d_params):
+                        if np.abs(d_value)<1e-35:   
+                            d_params[i] = d_value/np.abs(d_value) * 1e-35  # set the value to pluss/minus 1e-35
+
+                # Getting an array with only the last elements of each parameter in diff_params
+                current_last_values = np.asarray([item[-1] for item in diff_params])
+                # Fractional change in variables
+                dV_V = np.abs(current_last_values/d_params)        
+                # If the fractional change in any one variable is higher than the tolerance adjust dm
+                if np.any(dV_V>p):
+                    dm = -np.min(np.abs(p*current_last_values/d_params))
+                    if np.abs(dm)<1e15: # If the step size becomes too small break iterations
+                        break           # This takes care of too asymptotal behavior and stops the loop
+
+            if (i%4000 == 0):
                 print_progress()
             i += 1
         
@@ -170,15 +177,15 @@ class my_stellar_core():
         """
         Q = varying_parameter+'0'       # Rename varying_parameter to Q
         attributes = self.__dict__      # dictionary of objects attributes, e.i. self.parameter
-        original_value = attributes[Q]  # The original self.parameter value
+        #original_value = attributes[Q]  # The original self.parameter value
         solutions = []                  # List for storing solutions
         
         # Vary the given parameter from 0.2 to 1.5 of initial value in this loop
         for scale in np.linspace(low,high,nr):
-            attributes[Q] = scale*original_value
+            attributes[Q] = scale*self.given_initial_params[Q] #original_value
             solutions.append(self.ODE_solver(variable_step=True))
         
-        attributes[Q] = original_value  # Set the self.parameter value back to original for fourther testing   
+        attributes[Q] = self.given_initial_params[Q] #original_value  # Set the self.parameter value back to original for fourther testing   
         if returning:
             return solutions
         else:
@@ -189,12 +196,13 @@ class my_stellar_core():
         def is_result_good(solution):
             r,L,T,P,rho,eps,M = solution
             values_approx_zero = False
-            if r[-1]/r[0] <= 0.05 and L[-1]/L[0] <= 0.05 and M[-1]/M[0] <= 0.05:
+            index_r0_goal_2 = np.argmin(np.abs(r-r[0]*0.1))
+            if r[-1]/r[0] <= 0.05 and L[-1]/L[0] <= 0.05 and M[-1]/M[0] <= 0.05 and L[index_r0_goal_2]<0.995*L[0]:
                 values_approx_zero = True
             return values_approx_zero, r[0], T[0], rho[0]
         
         good_initial_parameters = []
-        for scale_T in np.linspace(0.2,5,10):    # Varying initial temperature
+        for scale_T in np.linspace(0.2,3,10):    # Varying initial temperature
             self.T0 = scale_T*self.given_initial_params['T0']    
             for scale_R in np.linspace(0.2,1.5,10):      # Varying initial radius
                 self.R0= scale_R*self.given_initial_params['R0']    
@@ -207,7 +215,7 @@ class my_stellar_core():
                     if result_is_good:  # If parameters are within 5% of initial value at the end
                         good_initial_parameters.append([initial_r,initial_T,initial_rho])   # store the good initial parameter values
                         solution_has_good_results = True
-                if solution_has_good_results: # If solutions has a good solution, plot plot it
+                if solution_has_good_results: # If solutions has a good solution, plot it!
                     self.plot_set_of_solutions(solutions,multible_parameters='rho0',filename='plot_'+string.replace(', ','_')+'.pdf',title_string='using '+string)
 
                 plt.close('all')    # Closing figures to not exhaust memory
@@ -478,13 +486,12 @@ if __name__ == '__main__':
             Star.opacity_sanity()
             Star.EOS_sanity()
             Star.plot_sanity()
-            print('Sanity checks done, exiting')
-            sys.exit(1)
+
         if sys.argv[1] == 'experiment' or sys.argv[1] == 'Experiment':
             
-            Star.experiment_multiple_solutions('T',low=0.2,high=5,nr=8)
+            #Star.experiment_multiple_solutions('T',low=0.2,high=5,nr=8)
             Star.experiment_multiple_solutions('R',low=0.2,high=1.5,nr=8)
-            Star.experiment_multiple_solutions('rho',low=0.2,high=1.5,nr=8)
+            #Star.experiment_multiple_solutions('rho',low=0.2,high=1.5,nr=8)
         
         if sys.argv[1] == 'findmystar' or sys.argv[1] == 'Findmystar':
             Star.find_my_star()

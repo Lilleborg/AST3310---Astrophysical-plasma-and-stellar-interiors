@@ -50,7 +50,7 @@ class my_stellar_core():
         self.R0 = 0.72*Sun.R        # Radius [m]
         
         # Control and program flow parameters
-        self.given_initial_params = {'L0':self.L0,'M0':self.M0,'rho0':self.rho0,'T0':self.T0}
+        self.given_initial_params = {'L0':self.L0,'M0':self.M0,'rho0':self.rho0,'T0':self.T0,'R0':self.R0}
         self.has_read_opacity_file = False
         self.debug = debug
         self.read_opacity(filename) # Calls read_opacity() in initialization
@@ -116,7 +116,7 @@ class my_stellar_core():
             L.append(L[-1] + dm*dL)
 
             # Updates the rest of the parameters
-            rho.append(self.rho_EOS(P[-1],T[-1]))
+            rho.append(self.get_rho_EOS(P[-1],T[-1]))
             engine = stellar_engine(rho[-1],T[-1])
             epsilon.append(engine())
             M.append(M[-1] + dm)
@@ -162,17 +162,16 @@ class my_stellar_core():
 
         return list_with_arrays   # Order: r,L,T,P,rho,epsilon,M
 
-    def experiment_multiple_solutions(self,varying_parameter,low=0.5,high=1.5,nr=6):
+    def experiment_multiple_solutions(self,varying_parameter,low=0.5,high=1.5,nr=6,returning=False):
         """
         Solves the system multiple times while varying one parameter
-        @ varying_parameter - string for witch parameter to change; one of [R,T,P,rho]
+        @ varying_parameter - string for witch parameter to change; one of [R,T,rho]
                                 !!!Renamed to Q in the execution!!!
         """
         Q = varying_parameter+'0'       # Rename varying_parameter to Q
         attributes = self.__dict__      # dictionary of objects attributes, e.i. self.parameter
         original_value = attributes[Q]  # The original self.parameter value
         solutions = []                  # List for storing solutions
-        #new_initial_values = []
         
         # Vary the given parameter from 0.2 to 1.5 of initial value in this loop
         for scale in np.linspace(low,high,nr):
@@ -180,13 +179,46 @@ class my_stellar_core():
             solutions.append(self.ODE_solver(variable_step=True))
         
         attributes[Q] = original_value  # Set the self.parameter value back to original for fourther testing   
-        self.plot_set_of_solutions(solutions,filename='test_change_'+Q+'.pdf',show=False,multible_parameters=Q)
+        if returning:
+            return solutions
+        else:
+            self.plot_set_of_solutions(solutions,filename='plot_experiment_change_'+Q+'.pdf',multible_parameters=Q)
 
+    def find_my_star(self):
 
+        def is_result_good(solution):
+            r,L,T,P,rho,eps,M = solution
+            values_approx_zero = False
+            if r[-1]/r[0] <= 0.05 and L[-1]/L[0] <= 0.05 and M[-1]/M[0] <= 0.05:
+                values_approx_zero = True
+            return values_approx_zero, r[0], T[0], rho[0]
+        
+        good_initial_parameters = []
+        for scale_T in np.linspace(0.2,5,10):    # Varying initial temperature
+            self.T0 = scale_T*self.given_initial_params['T0']    
+            for scale_R in np.linspace(0.2,1.5,10):      # Varying initial radius
+                self.R0= scale_R*self.given_initial_params['R0']    
+                string = '{:.2f}R0, {:.2f}T0'.format(scale_R,scale_T)   # String for file handling and plotting
+                # Reusing writted method for changing rho parameter
+                solutions = self.experiment_multiple_solutions('rho',low=0.2,high=1.5,nr=10,returning=True)
+                solution_has_good_results = False   # Flow parameter, trigger plotting of a set of good solutions
+                for one_solution in solutions:  # looping over the different sets of solutions stored in solutions
+                    result_is_good, initial_r, initial_T, initial_rho = is_result_good(one_solution)    # Testing the solution
+                    if result_is_good:  # If parameters are within 5% of initial value at the end
+                        good_initial_parameters.append([initial_r,initial_T,initial_rho])   # store the good initial parameter values
+                        solution_has_good_results = True
+                if solution_has_good_results: # If solutions has a good solution, plot plot it
+                    self.plot_set_of_solutions(solutions,multible_parameters='rho0',filename='plot_'+string.replace(', ','_')+'.pdf',title_string='using '+string)
+
+                plt.close('all')    # Closing figures to not exhaust memory
+        
+        # Saving the sets of good parameters to file
+        good_initial_parameters = np.asarray(good_initial_parameters)
+        np.savetxt('good_initial_parameters.txt',good_initial_parameters,header='{:^24s}|{:^24s}|{:^24s}'.format('R0','T0','rho0')) 
 
     # --- Convenient functions and getters ---- #
     # ----------------------------------------- #
-    def plot_set_of_solutions(self,params,filename=0,show=False,multible_parameters=0):
+    def plot_set_of_solutions(self,params,filename=0,show=False,multible_parameters=0,title_string=''):
         """
         Method for plotting a set of solutions for each parameter
 
@@ -195,27 +227,28 @@ class my_stellar_core():
                                                  makes it possible to plot multiple sets of solutions at once
         @ show - bool; show the figure or not at the end
         @ filename - bool; if not 0 the figure get saved using filename in directory ./plots/
+        @ multiible_parameters - used to determine legends when plotting multiple sets of solutions, if not 0
+        @ title_string - add this string to the end of the supertitle used in each plot to keep track of specific parameters
         """
         # Set up axes and fig objects
         fig, ((Pax,Lax,emptyax),(Rax,Tax,Dax)) = plt.subplots(2,3,figsize = (14.3,8),sharex='col')
-
         emptyax.remove()    # Don't display the [0,2] axes
 
         # Set up each axis object
         Rax.set_title('Radius vs mass')
-        Rax.set_ylabel(r'$R/R_{sun}$')
-        Rax.set_xlabel(r'$M/M_{sun}$')
+        Rax.set_ylabel(r'$R/R_0$')
+        Rax.set_xlabel(r'$M/M_0$')
         
         Lax.set_title('Luminosity vs mass')
-        Lax.set_ylabel(r'$L/L_{sun}$')
+        Lax.set_ylabel(r'$L/L_0$')
 
         Tax.set_title('Temperature vs mass')
         Tax.set_ylabel(r'$T[MK]$')
-        Tax.set_xlabel(r'$M/M_{sun}$')
+        Tax.set_xlabel(r'$M/M_0$')
 
         Dax.set_title('Density vs mass')
-        Dax.set_ylabel(r'$\rho/\rho_{sun}$')
-        Dax.set_xlabel(r'$M/M_{sun}$')
+        Dax.set_ylabel(r'$\rho/\rho_0$')
+        Dax.set_xlabel(r'$M/M_0$')
         
         Pax.set_title('Pressure vs mass')
         Pax.set_ylabel(r'$P [PPa]$')
@@ -224,42 +257,71 @@ class my_stellar_core():
 
         for set_of_solutions in params:
             r,L,T,P,rho,eps,M = set_of_solutions
-            scaled_mass = M/Sun.M
+            # Normalized/scaled quantyties
+            s_R = r/r[0]
+            s_L = L/L[0]
+            s_rho = rho/rho[0]
+            s_eps = eps/eps[0]
+            s_M = M/M[0]
+            
+            Rax.plot(s_M,s_R,label=r'$R0 = {:.2f}\cdot R_0$'.format(r[0]/g_i_p['R0']))
+            Lax.plot(s_M,s_L)
+            Tax.plot(s_M,T*1e-6,label=r'$T0 = {:.2f}\cdot T_0$'.format(T[0]/g_i_p['T0']))
+            Dax.semilogy(s_M,s_rho,label=r'$\rho0 = {:.2f}\cdot\rho_0$'.format(rho[0]/g_i_p['rho0']))
+            Pax.semilogy(s_M,P*1e-15)
 
-            Rax.plot(scaled_mass,r/Sun.R,label=r'$R0 = {:.2f}R_\odot$'.format(r[0]/Sun.R))
-            Lax.plot(scaled_mass,L/Sun.L)
-            Tax.plot(scaled_mass,T*1e-6,label=r'$T0 = {:.2f} MK$'.format(T[0]*1e-6))
-            Dax.semilogy(scaled_mass,rho/Sun.rho_avg,label=r'$\rho0 = {:.2f}\rho_\odot$'.format(rho[0]/Sun.rho_avg))
-            Pax.plot(scaled_mass,P*1e-15)
+        zero_goal_axis = [Lax,Rax]
+        for ax in zero_goal_axis:     # Marking lines for goals for each parameter
+            ax.axvline(x=0.05,color='r',linestyle='--',alpha=0.7)
+            ax.axhline(y=0.05,color='r',linestyle='--',alpha=0.7)
 
         if multible_parameters == 0:
-            axes = [Rax,Tax,Dax]
-            for ax in axes:
-                ax.legend()
+            pass
+            # axes = [Rax,Tax,Dax]
+            # for ax in axes:
+            #     ax.legend()
         else:
             multi = multible_parameters
+            supertitle = 'Experimenting with different initial '
+
             if multi == 'R0':
                 handles, labels = Rax.get_legend_handles_labels()
-                fig.suptitle('Experimenting with different initial radii',size=30)
+                fig.suptitle(supertitle+'radii '+title_string,size=30)
             elif multi == 'T0':
                 handles, labels = Tax.get_legend_handles_labels()
-                fig.suptitle('Experimenting with different initial temperatures',size=30)
+                fig.suptitle(supertitle + 'temperatures '+title_string,size=30)
             elif multi == 'rho0':
                 handles, labels = Dax.get_legend_handles_labels()
-                fig.suptitle('Experimenting with different initial densities',size=30)
+                fig.suptitle(supertitle + 'densities '+title_string,size=30)
             else:
                 print('Labels not understood!')
             
             nrcols = 1
             if len(handles)>7:
                 nrcols = 2
-            fig.legend(handles,labels,loc='upper left',bbox_to_anchor=((5-0.2)/7, 6/7),ncol=nrcols,columnspacing=0.1)
+            fig.legend(handles,labels,loc='upper left',bbox_to_anchor=((5-0.2)/7, 6/7),ncol=nrcols,columnspacing=0.5)
 
         fig.tight_layout(rect=[0, 0.0, 1, 0.95],h_pad=0)
         if filename!=0:
             plt.savefig('./plots/'+filename)
         if show:
             plt.show()
+
+    def comparing_table(self,computed,expected):
+        """ Helper function for comparing quantities computed vs expected in a table """
+        print('{:^11s}|{:^11s}|{:^11s}'.format('Computed','Expected','Rel. error'))
+        print('-'*35)
+        try:
+            for c,e in zip(computed,expected):
+                rel_error = np.abs((e-c)/e)
+                print('{:^11.3e}|{:^11.3e}|{:^11.6f}'.format(c,e,rel_error))
+
+        except TypeError:   # If computed and expected is not iterable (e.i. floats)
+            rel_error = np.abs((expected-computed)/expected)
+            print('{:^11.3e}|{:^11.3e}|{:^11.6f}'.format(computed,expected,rel_error))
+        print('-'*35)
+
+
     def read_opacity(self,filename='opacity.txt'):
         """
         Reads the file filename (default opacity.txt, dim 71x19) and interpolate the kappa values 
@@ -304,7 +366,7 @@ class my_stellar_core():
         P_G = rho*self.k_B*T/self.mu_0/self.m_u     # Gass pressure from ideal gass law
         return P_R + P_G
 
-    def rho_EOS(self,P,T):
+    def get_rho_EOS(self,P,T):
         """ Uses equation fo state to find the density from pressure and temperature"""
         constant = self.mu_0*self.m_u/self.k_B  # Algebraic term
 
@@ -312,20 +374,7 @@ class my_stellar_core():
 
     # ------------- Sanity checks ------------- #
     # ----------------------------------------- #
-    def comparing_table(self,computed,expected):
-        """ Helper function for comparing quantities computed vs expected in a table """
-        print('{:^11s}|{:^11s}|{:^11s}'.format('Computed','Expected','Rel. error'))
-        print('-'*35)
-        try:
-            for c,e in zip(computed,expected):
-                rel_error = np.abs((e-c)/e)
-                print('{:^11.3e}|{:^11.3e}|{:^11.6f}'.format(c,e,rel_error))
-
-        except TypeError:   # If computed and expected is not iterable (e.i. floats)
-            rel_error = np.abs((expected-computed)/expected)
-            print('{:^11.3e}|{:^11.3e}|{:^11.6f}'.format(computed,expected,rel_error))
-        print('-'*35)
-
+    
     def plot_sanity(self):
 
         # Ensure same initial parameters as in app. D
@@ -362,7 +411,7 @@ class my_stellar_core():
 
         fig.suptitle('Sanity check plot from app. D',size=30)
         fig.tight_layout(h_pad = 0.5,rect=[0, 0.03, 1, 0.95])
-        fig.savefig('./plots/sanity_plot.pdf')
+        fig.savefig('./plots/plot_sanity.pdf')
         plt.show()
 
     def opacity_sanity(self):
@@ -408,7 +457,7 @@ class my_stellar_core():
         T0 = self.T0
         
         computed_P = self.get_P_EOS(expected_rho0,T0)
-        computed_rho = self.rho_EOS(computed_P,T0)
+        computed_rho = self.get_rho_EOS(computed_P,T0)
 
         print('Density EOS')
         self.comparing_table(computed_rho,expected_rho0)
@@ -432,18 +481,13 @@ if __name__ == '__main__':
             print('Sanity checks done, exiting')
             sys.exit(1)
         if sys.argv[1] == 'experiment' or sys.argv[1] == 'Experiment':
-            # if len(sys.argv) > 2:
-            #     if 'T' in sys.argv[2:]:
-            #         Star.experiment_multiple_solutions('T',low=0.2,high=5,nr=8)
-            #     if 'R' in sys.argv[2:]:
-            #         Star.experiment_multiple_solutions('R',low=0.3,high=1.3,nr=8)
-            #     if 'rho' in sys.argv[2:]:
-            #         Star.experiment_multiple_solutions('rho',low=0.2,high=0.3,nr=8)
-            # else:
-            #Star.experiment_multiple_solutions('T',low=0.5,high=10,nr=4)
-            #Star.experiment_multiple_solutions('R',low=0.3,high=1.3,nr=8)
-            Star.experiment_multiple_solutions('rho',low=0.2,high=0.3,nr=8)
+            
+            Star.experiment_multiple_solutions('T',low=0.2,high=5,nr=8)
+            Star.experiment_multiple_solutions('R',low=0.2,high=1.5,nr=8)
+            Star.experiment_multiple_solutions('rho',low=0.2,high=1.5,nr=8)
+        
+        if sys.argv[1] == 'findmystar' or sys.argv[1] == 'Findmystar':
+            Star.find_my_star()
     
-    plt.show()
+    #plt.show()
     
-    #Star.EOS_sanity()

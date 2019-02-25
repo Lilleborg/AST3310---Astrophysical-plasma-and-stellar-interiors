@@ -1,6 +1,9 @@
 ## MACOS stuff
 .DS_Store
 
+## Folders with much data
+plot_*.pdf
+
 
 
 # Byte-compiled / optimized / DLL files

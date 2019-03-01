@@ -57,7 +57,7 @@ class my_stellar_core():
         self.name = input_name      # optional name for the object
 
         # Found good initial parameters for radius, temperature and density
-        # Found from find_my_star() method and manual inspection of plots
+        # from find_my_star() method and manual inspection of plots
         self.R0074_T_rho = [[0.9,0.2],[0.74,0.2],[0.36,0.2],[0.2,0.40]]
         self.R0067_T_rho = [[0.9,0.2],[0.82,0.2],[0.74,0.25],[0.67,0.2],[0.59,0.2],[0.43,0.25],[0.36,0.3],[0.2,0.49]]
         self.R0059_T_rho = [[0.9,0.34],[0.82,0.34],[0.74,0.34],[0.67,0.34],[0.59,0.34],[0.43,0.34],[0.36,0.49],[0.28,0.7]]
@@ -216,14 +216,16 @@ class my_stellar_core():
             if r[-1]/r[0] <= 0.05 and L[-1]/L[0] <= 0.05 and M[-1]/M[0] <= 0.05 and L[index_r0_goal_2]<0.995*L[0]:
                 values_approx_zero = True
             return values_approx_zero, r[0], T[0], rho[0]
-        g_i_p = self.g_i_p
+
+        g_i_p = self.given_initial_params
         good_initial_parameters = []
         for scale_T in np.linspace(tlow,thigh,tnr):    # Varying initial temperature
-            self.T0 = scale_T*self.g_i_p['T0']    
+            self.T0 = scale_T*g_i_p['T0']    
             for scale_R in np.linspace(rlow,rhigh,rnr):      # Varying initial radius
-                self.R0= scale_R*self.g_i_p['R0']  
+                self.R0= scale_R*g_i_p['R0']  
 
                 string = '{:.2f}R0, {:.2f}T0'.format(scale_R,scale_T)   # String for file handling and plotting
+                
                 # Reusing writted method for changing rho parameter
                 solutions = self.experiment_multiple_solutions('rho',low=rholow,high=rhohigh,nr=rhonr,returning=True)
                 
@@ -240,9 +242,9 @@ class my_stellar_core():
                 plt.close('all')    # Closing figures to not exhaust memory
 
         # Reset initial values
-        self.T0 = self.g_i_p['T0']
-        self.R0 = self.g_i_p['R0']
-        self.rho0 = self.g_i_p['rho0']
+        self.T0 = g_i_p['T0']
+        self.R0 = g_i_p['R0']
+        self.rho0 = g_i_p['rho0']
 
         # Saving the sets of good parameters to file
         good_initial_parameters = np.asarray(good_initial_parameters)
@@ -251,45 +253,35 @@ class my_stellar_core():
         if returning:
             return good_initial_parameters
 
-    def deeper_look_at_good_solutions(self,what_R0='0.74',read_file='./before_low_initials/good_initial_parameters.txt'):
+    def deeper_look_at_good_solutions(self,what_R0='0.59',final=0,Show=False):
         """
         Uses the good initial parameters found with find_my_star() to take a deeper look at the good solutions.
         @ read_file - A string for the txt file where the initial parameters are store, or 0 to call find_my_star()
         """
-        different_R0 = [self.R0074_T_rho,self.R0067_T_rho,self.R0059_T_rho,self.R0051_T_rho]
-        values = ['0.74','0.67','0.59','0.51']
-
-        for i,sets in enumerate(different_R0):
-            solutions = []  
-            for T_rho in sets:
-                self.R0 = float(values[i])*self.given_initial_params['R0']
-                self.T0 = T_rho[0]*self.given_initial_params['T0']
-                self.rho0 = T_rho[1]*self.given_initial_params['rho0']
-                solutions.append(self.ODE_solver(variable_step=True))
-
-            self.plot_set_of_solutions(solutions,filename='plot_'+values[i]+'R0',multible_parameters='T0,rho0',title_string=values[i]+'R0',show=True)
+        different_R0 = {'0.74':self.R0074_T_rho,'0.67':self.R0067_T_rho,'0.59':self.R0059_T_rho,'0.51':self.R0051_T_rho}
+        #values = ['0.74','0.67','0.59','0.51']
+        g_i_p = self.given_initial_params
+        solutions = []  
+        for T_rho in different_R0[what_R0]:
+            self.R0 = float(what_R0)*g_i_p['R0']
+            self.T0 = T_rho[0]*g_i_p['T0']
+            self.rho0 = T_rho[1]*g_i_p['rho0']
+            solutions.append(self.ODE_solver(variable_step=True))
+        if final ==0:   # If not final, plot using experiment method
+            self.plot_set_of_solutions(solutions,filename='plot_'+what_R0+'R0',multible_parameters='T0,rho0',title_string=values[i]+'R0',show=Show)
+        else:
+            self.plot_good_stars(solutions,filename='plot_good_star_'+what_R0+'R0',title_string=what_R0+'R0',show=Show)
 
         # Reset initial values
-        self.T0 = self.g_i_p['T0']
-        self.R0 = self.g_i_p['R0']
-        self.rho0 = self.g_i_p['rho0']
-    
-    def final_star(self):
-
-        self.R0 = 0.74*self.given_initial_params['R0']
-        solutions = []
-        for sets in self.R0074_T_rho:
-            self.T0,self.rho0 = sets
-            solutions.append(self.ODE_solver(variable_step=True))
-        self.plot_good_stars(solutions)
-
-
+        self.T0 = g_i_p['T0']
+        self.R0 = g_i_p['R0']
+        self.rho0 = g_i_p['rho0']
 
     # --- Convenient functions and getters ---- #
     # ----------------------------------------- #
     def plot_good_stars(self,solutions,filename=0,show=False,title_string=''):
 
-        fig, ((Pax,Lax,Eax),(Max,Tax,Dax)) = plt.subplots(2,3,figsize=(14.3,8),sharex='col')
+        fig, ((Pax,Lax,Eax),(Max,Tax,Dax)) = plt.subplots(2,3,figsize=(14,8),sharex='col')
 
         # Set up each axis object:
         Pax.set_title('Pressure vs radius')
@@ -299,9 +291,9 @@ class my_stellar_core():
         Lax.set_ylabel(r'$L/L_0$')
 
         Eax.set_title('Energy prod. vs radius')
-        Eax.set_ylabel(r'\epsilon/\epsilon_0$')
+        Eax.set_ylabel(r'$\epsilon/\epsilon_0$')
 
-        Max.set_title('Mas vs radius')
+        Max.set_title('Mass vs radius')
         Max.set_ylabel(r'$M/M_0$')
         Max.set_xlabel(r'$R/R_0$')
 
@@ -313,12 +305,14 @@ class my_stellar_core():
         Dax.set_ylabel(r'$\rho/\rho_0$')
         Dax.set_xlabel(r'$R/R_0$')
 
+        g_i_p = self.given_initial_params
         for set_of_solutions in solutions:
             r,L,T,P,rho,epsilon,M = set_of_solutions
             # Normalized/scaled quantyties:
             s_R,s_L,T,P,s_rho,s_eps,s_M = self.scale_parameter_lists(set_of_solutions)
+            Label = r'$T0 = $%.2f $T_0$' '\n' r'$\rho 0 = $%.2f $\rho_0$'%(T[0]/g_i_p['T0'],rho[0]/g_i_p['rho0'])
 
-            Pax.semilogy(s_R,P)
+            Pax.semilogy(s_R,P,label=Label)
             Lax.plot(s_R,s_L)
             Eax.semilogy(s_R,s_eps)
             Max.plot(s_R,s_M)
@@ -326,7 +320,14 @@ class my_stellar_core():
             Dax.semilogy(s_R,s_rho)
 
         Lax.axvline(x=0.1,color='r',linestyle='--',alpha=0.7)
-        plt.show()
+        handles,labels = Pax.get_legend_handles_labels()
+        #Pax.legend(loc='upper left',bbox_to_anchor=(0.1,0.3),ncol=len(solutions))
+        fig.legend(handles,labels,loc='upper center',bbox_to_anchor=(0.5,0.1),ncol=len(solutions),columnspacing=0.3)
+        fig.suptitle(r'Good star with $R_0 = $' + title_string, size=30)
+        fig.tight_layout(rect=[0, 0.06, 1, 0.97],h_pad=0)
+
+        if filename != 0:
+            plt.savefig('./plots/'+filename+'.pdf')
 
 
     def scale_parameter_lists(self,set_of_solutions):
@@ -347,7 +348,7 @@ class my_stellar_core():
         @ title_string - add this string to the end of the supertitle used in each plot to keep track of specific parameters
         """
         # Set up axes and fig objects:
-        fig, ((Pax,Lax,emptyax),(Rax,Tax,Dax)) = plt.subplots(2,3,figsize = (14.3,8),sharex='col')
+        fig, ((Pax,Lax,emptyax),(Rax,Tax,Dax)) = plt.subplots(2,3,figsize = (14,8),sharex='col')
 
         # Set up each axis object:
         emptyax.remove()    # Don't display the [0,2] axes
@@ -611,6 +612,7 @@ if __name__ == '__main__':
             Star.find_my_star()
         if sys.argv[1] == 'deeperlook' or sys.argv[1] == 'Deeperlook':
             Star.deeper_look_at_good_solutions()
+        if sys.argv[1] == 'good' or sys.argv[1] == 'Good':
+            Star.deeper_look_at_good_solutions(what_R0='0.51',final=1,Show=True)
     
-    Star.final_star()
     

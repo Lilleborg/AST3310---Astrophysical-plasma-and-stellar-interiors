@@ -37,7 +37,9 @@ class my_stellar_core():
     def __init__(self,debug=False,filename='opacity.txt',input_name=''):
         
         # Mean molecular weight
-        self.mu_0 = 1/(2*self.X + self.Y3 + 3/4*(self.Y-self.Y3) + 4/7*self.Z_Li + 5/7*self.Z_Be)
+        self.mu_0 = 1/(2*self.X+self.Y3+3/4*(self.Y-self.Y3)+1/2*self.Z)#+4/7*self.Z_Li+5/7*self.Z_Be+1/2*self.Z)
+        #print(self.mu_0)
+        #self.mu_0 = (1/(2*self.X + self.Y3 + 3/4*self.Y + self.Z/2))
         
         # Initial parameters at bottom of solar convection zone
         # Fixed parameters
@@ -59,9 +61,9 @@ class my_stellar_core():
         # Found good initial parameters for radius, temperature and density
         # from find_my_star() method and manual inspection of plots
         self.R0074_T_rho = [[0.9,0.2],[0.74,0.2],[0.36,0.2],[0.2,0.40]]
-        self.R0067_T_rho = [[0.9,0.2],[0.82,0.2],[0.74,0.25],[0.67,0.2],[0.59,0.2],[0.43,0.25],[0.36,0.3],[0.2,0.49]]
-        self.R0059_T_rho = [[0.9,0.34],[0.82,0.34],[0.74,0.34],[0.67,0.34],[0.59,0.34],[0.43,0.34],[0.36,0.49],[0.28,0.7]]
-        self.R0051_T_rho = [[0.9,0.49],[0.9,0.55],[0.82,0.63],[0.74,0.63],[0.67,0.63],[0.59,0.78],[0.51,0.8],[0.43,1.],[0.36,1.21]]
+        self.R0067_T_rho = [[0.9,0.2],[0.74,0.25],[0.59,0.2],[0.43,0.25],[0.36,0.3],[0.2,0.49]]
+        self.R0059_T_rho = [[0.9,0.34],[0.74,0.34],[0.59,0.34],[0.43,0.34],[0.36,0.49],[0.28,0.7]]
+        self.R0051_T_rho = [[0.9,0.55],[0.82,0.63],[0.67,0.63],[0.51,0.8],[0.43,1.],[0.36,1.21]]
 
     def RHS_problem(self,M,diff_params,eq_params):
         r,L,T,P = diff_params
@@ -270,7 +272,7 @@ class my_stellar_core():
         if final ==0:   # If not final, plot using experiment method
             self.plot_set_of_solutions(solutions,filename='plot_'+what_R0+'R0',multible_parameters='T0,rho0',title_string=values[i]+'R0',show=Show)
         else:
-            self.plot_good_stars(solutions,filename='plot_good_star_'+what_R0+'R0',title_string=what_R0+'R0',show=Show)
+            self.plot_good_stars(solutions,filename='plot_good_star_new_mu'+what_R0+'R0',title_string=what_R0+'R0',show=Show)
 
         # Reset initial values
         self.T0 = g_i_p['T0']
@@ -291,7 +293,7 @@ class my_stellar_core():
         Lax.set_ylabel(r'$L/L_0$')
 
         Eax.set_title('Energy prod. vs radius')
-        Eax.set_ylabel(r'$\epsilon/\epsilon_0$')
+        Eax.set_ylabel(r'$\varepsilon/\varepsilon_0$')
 
         Max.set_title('Mass vs radius')
         Max.set_ylabel(r'$M/M_0$')
@@ -319,7 +321,12 @@ class my_stellar_core():
             Tax.plot(s_R,T*1e-6)
             Dax.semilogy(s_R,s_rho)
 
+        index_core = np.argmin(np.abs(s_L-0.995))
         Lax.axvline(x=0.1,color='r',linestyle='--',alpha=0.7)
+        Lax.axhline(y=0.995,color='r',linestyle='--',alpha=0.7)
+        for ax in [Pax,Lax,Eax,Max,Tax,Dax]:
+            ax.axvline(x=s_R[index_core],color='b',linestyle='--',alpha=0.7)
+
         handles,labels = Pax.get_legend_handles_labels()
         #Pax.legend(loc='upper left',bbox_to_anchor=(0.1,0.3),ncol=len(solutions))
         fig.legend(handles,labels,loc='upper center',bbox_to_anchor=(0.5,0.1),ncol=len(solutions),columnspacing=0.3)
@@ -328,6 +335,9 @@ class my_stellar_core():
 
         if filename != 0:
             plt.savefig('./plots/'+filename+'.pdf')
+        if show:
+            plt.show()
+
 
 
     def scale_parameter_lists(self,set_of_solutions):
@@ -613,6 +623,9 @@ if __name__ == '__main__':
         if sys.argv[1] == 'deeperlook' or sys.argv[1] == 'Deeperlook':
             Star.deeper_look_at_good_solutions()
         if sys.argv[1] == 'good' or sys.argv[1] == 'Good':
-            Star.deeper_look_at_good_solutions(what_R0='0.51',final=1,Show=True)
+            Star.deeper_look_at_good_solutions(what_R0='0.51',final=1)
+            Star.deeper_look_at_good_solutions(what_R0='0.59',final=1)
+            Star.deeper_look_at_good_solutions(what_R0='0.67',final=1)
+            Star.deeper_look_at_good_solutions(what_R0='0.74',final=1)
     
     

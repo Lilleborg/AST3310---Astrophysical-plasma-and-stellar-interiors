@@ -1,0 +1,395 @@
+\documentclass[11pt,a4paper,twocolumn,titlepage]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+
+%%%%%%%%%%% Own packages
+\usepackage[a4paper, margin=1in]{geometry}
+\usepackage{multicol}
+
+% Spacing
+
+\linespread{0.9}
+%\renewcommand\floatpagefraction{.9}
+\renewcommand\dblfloatpagefraction{.9} % for two column documents
+%\renewcommand\topfraction{.9}
+\renewcommand\dbltopfraction{.9} % for two column documents
+\renewcommand\bottomfraction{.9}
+\renewcommand\textfraction{.1}
+\addtolength{\dbltextfloatsep}{-0.2in}
+\setcounter{totalnumber}{50}
+\setcounter{topnumber}{50}
+\setcounter{bottomnumber}{50}
+
+% Boxing
+%\usepackage[most]{tcolorbox}
+%\tcbset{enhanced}
+%\usepackage{capt-of}	% captions in boxes
+
+% Header/footer
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\renewcommand{\headrulewidth}{0pt}
+
+% Maths
+\usepackage{physics}
+\usepackage{cancel}
+\usepackage{amstext,amsbsy,amssymb}
+\usepackage{times} 
+\usepackage{siunitx}
+
+%% Graphics
+\usepackage{caption}
+\captionsetup{margin=10pt,font=small,labelfont=bf}
+%\renewcommand{\thesubfigure}{(\alph{subfigure})} % Style: 1(a), 1(b)
+%\pagestyle{empty}
+\usepackage{graphicx}% Include figure files
+%\usepackage{afterpage}    % control page numbering on page with floats
+\usepackage{floatpag} % float page package
+\usepackage{rotating}
+
+% Listsings and items
+\usepackage[shortlabels]{enumitem}
+%\setenumerate{wide,labelwidth=!, labelindent=2pt}
+\usepackage{varioref}
+\usepackage{hyperref}
+\usepackage{cleveref}
+
+%%%%%%%%%%%% New commands
+%% Quic-half
+\newcommand{\half}
+{
+\frac{1}{2}
+}
+%% quad while
+\newcommand{\qqwhile}
+{
+\qq{while}
+}
+%% quad where
+\newcommand{\qqwhere}
+{
+\qq{where}
+}
+
+
+\title{AST3310 - Modelling a sellar core\\ 
+        \vspace{15mm}Project 1}
+\author{Jakob Borg}
+%%%%%%%
+\begin{document}
+%%%%%%%
+
+\maketitle
+
+%%%%%%%%
+%\lhead{Jakob Borg}
+%\lhead{Problem set 4 FYS3120}
+%\rhead{Jakobbor}
+%%%%%%%%
+
+%%%%%%%%
+% INTRODUCTION
+\section{Introduction} \label{sec:Introduction}
+In this project we are working towards a stable physical simulation of a stellar core. To do this we are solving a set of seven governing equations for the radiative core of a star. The goal is to find good initial values for some of the parameters used in the calculations, see \cref{subsec:governing/goals}. We are only looking at the star up to the bottom of the lower convection zone, excluding all convective heat transfer, so the temperature is determined from the radiative diffusion equation alone.
+
+This paper is structured around three main parts. First in \cref{sec:Governing_equations} we will discuss the involved set of equations and some precalculation. In \cref{sec:Method} the method for solving the equations, experimentation with the solutions and how to find physical good solutions are elaborated. Finally in \cref{sec:Conclution} we present the final results and some thoughts and problems regarding the project.
+
+\subsection{Assumptions}\label{subsec:Intro/Assumptions}
+For our star we assume we know the mass fractions of each atomic species involved, and that these are independent of radius and time. Let the mass fractions be given as $X$, $Y$, $Y_3$, $Z$, $Z_{^7_3Li}$ and $Z_{^7_4Be}$ be the fraction of hydrogen, helium, helium-3, metals\footnote{Metals is considered as everything heavier than helium.}, lithium-7 and beryllium-7 respectively.
+
+We also assume the energy production of the core to be governed by the three PP-reactions, so we neglect the CNO-cycle, see \cref{subsec:Intro/project0}. In addition we assume the star to be under hydrostatic equilibrium and to be spherical symmetric.
+
+%%%%%%%%
+% Note on project 0
+\subsection{Note; Project 0 - Energy Production} \label{subsec:Intro/project0}
+This project is built upon the code from app. C in the compendium, where we produced methods for calculating the energy production from the PP-reaction chains given a temperature and density. This produced energy is denoted as $\varepsilon$ for the rest of this paper.
+
+%%%%%%%%
+% State equations
+\section{The Governing Equations} \label{sec:Governing_equations}
+For our model we need 10 variables to fully describe the star; where three of them is considered to be know, the mass $m$ is our integration variable and is chosen, the opacity $\kappa$ is read from a table and $\varepsilon$ is determined from the methods mention in \cref{subsec:Intro/project0}.
+
+That leaves seven unknowns; radius $r$, density $\rho$, temperature $T$, luminosity $L$, gaseous pressure $P_G$, radiative pressure $P_{rad}$ and total pressure ${P}$. Under our assumptions the model we consider is determined from the set of four coupled differential equations
+\begin{align}
+\pdv{r}{m} &= \frac{1}{4\pi r^2 \rho} \label{eq:dr/dm}
+\\
+\pdv{P}{m} &= -\frac{Gm}{4\pi r^4} \label{eq:dP/dm} %\qc P_0 = P_G+P_{rad}
+\\
+\pdv{L}{m} &= \varepsilon    \label{eq:dL/dm}
+\\
+\pdv{T}{m} &= -\frac{3\kappa L}{256\pi^2\sigma r^4T^3} \label{eq:dT/dm}
+\\
+\qq*{also:} P &= P_G+P_{rad} \label{eq:Total_pressure}.
+\end{align}
+In addition we need two more equations to solve the system, which is found through an equation of state discussed in \cref{subsec:governing/EOS_p_rho}. Note that, as mentioned, we use the mass as integration variable instead of the more <<conventional>> radius. This is due to the equations behaving better as a function of mass.
+
+%%%%%%%%
+% GIVEN INITIAL PARAMETERS
+\subsection{Given Initial Parameters} \label{subsec:Intro/Initial_params}
+For our model we are given a set of initial parameters to start from. Here the different mass fractions are given as
+\begin{equation}
+\begin{aligned}
+X&=0.7 & Y &= 0.29 & Y_3&=10^{-10} 
+\\
+Z&= 0.1 & Z_{^7_3Li} &= 10^{-13} & Z_{^7_4Be} &= 10^{-13} \label{eq:Mass_fractions}
+\end{aligned}
+\end{equation}
+which will not be changed at any point in the simulations. In addition we have some initial parameter values for the luminosity and mass that won't be changed either
+\begin{equation}
+\begin{aligned}
+L_0 &= 1.0\cdot L_\odot & M_0 &= 0.8\cdot M_\odot.\label{eq:Initial_lumen_mass}
+\end{aligned}
+\end{equation}
+Lastly we have values for the radius, density and temperature which will be explored further in \cref{subsub:Method/Experimenting_initial_params}
+\begin{align}
+R_0&=0.72\cdot R_\odot & \rho_0 &= 5.1\cdot \bar{\rho}_\odot & T_0 &= \SI{5.7e6}{K}.
+\end{align}
+Here the quantities with subscript $Q_\odot$ is the value of quantity $Q$ from the Sun. Importantly, quantities with subscript $Q_0$ is referred to as the initial value of said quantity $Q$, and will be the main focus of much of the discussion to come. Whenever the given initial parameters are mentioned it refers to these original values.
+
+%%%%%%%%%
+% GOALS
+\subsection{Goals for the Project, Physical Solutions} \label{subsec:governing/goals}
+The goals for this project, as mentioned in the introduction, is to produce a star which behaves physical. This is described by two criteria
+\begin{enumerate}
+\item the fractions $\frac{L}{L_0}$, $\frac{r}{r_0}$ and $\frac{m}{m_0}$ should all $\rightarrow 0$ when reaching the core. This is improbable numerically, so we settle with a goal of the relations being less than $\SI{5}{\%}$.
+\item the core of the star, defined as where ${\frac{L}{L_0}<0.995}$ should reach out to atleast $\SI{10}{\%}$ of $R_0$.
+\end{enumerate}
+
+%%%%%%%%
+% EOS pressure and density
+\subsection{Equation of State, Calculating Pressure and Density}
+\label{subsec:governing/EOS_p_rho}
+The pressure forces considered in this model are the radiative and gas pressure from \cref{eq:Total_pressure}. In some stars also the pressure from degenerate electrons or neutrons contribute, but this is not under investigation in this paper. The radiative pressure depends on the temperature alone, and is given by
+\begin{equation}
+P_R = \frac{4\sigma}{3c}T^4 \label{eq:radiative_pressure}
+\end{equation}
+where ${\sigma = \SI{5.67e-8}{\watt\per\meter\squared\per\kelvin\tothe{4}}}$ is the Stefan-Boltzmann constant.
+
+The gas pressure is found from the equation of state for an ideal gas
+\begin{equation}
+PV = Nk_BT, \label{eq:EOS_ideal_gass}
+\end{equation}
+substituting the number of particles ${N = \frac{m}{\mu m_u}}$ and expressing the mass as $m = \rho V$ we rewrite the equation of state for the gas pressure as
+\begin{equation}
+P_G = \frac{\rho}{\mu m_u}k_B T. \label{eq:EOS_gas_pressure}
+\end{equation}
+Here ${k_B = \SI{1.382e-23}{\meter\squared\kilogram\per\second\squared\per\kelvin}}$ is the Boltzmann constant and $\mu$ is the mean molecular weight, which will be discussed further in \cref{subsec:governing/Mean_molecular_wieght}. The full equation of state for the pressure is then sum of \cref{eq:radiative_pressure,eq:EOS_gas_pressure}, giving
+\begin{equation}
+P = \frac{4\sigma}{3c}T^4 +  \frac{\rho}{\mu m_u}k_B T. \label{eq:EOS_pressure}
+\end{equation}
+Solving \cref{eq:EOS_pressure} for $\rho$ gives the equation of state for the density
+\begin{equation}
+\rho = \frac{P-\frac{4\sigma}{3c}T^4}{k_BT}\mu m_u. \label{eq:EOS_rho}
+\end{equation}
+
+%%%%%%%%
+% MEAN MOLECULAR WEIGHT
+\subsection{Mean Molecular Weight} \label{subsec:governing/Mean_molecular_wieght}
+The mean molecular weight per particle considered in the model is calculated using eq. (4.23) from the compendium
+\[ \mu_0 = \frac{1}{\sum(\text{\# particles provided}\times\frac{\text{mass-fraction}}{\text{\# nuclear particles}})} \]
+where the sum goes over each type of nucleus present. We assume the hydrogen and helium to be fully ionized, and the metals providing their usual number of electrons. For the metals, as their mass fraction is so low and the number of particles in the nuclei is quite large, it can be shown\footnote{From eq. (4.21) in the compendium.} that the contribution can be approximated by half the mass fraction $Z$. This results in a mean molecular weight
+\begin{equation}
+\mu = \frac{1}{2X + Y_3 +\frac{3}{4}\qty(Y-Y_3) + \half Z}. \label{eq:Mean_molecular_weight}
+\end{equation}
+%There have been some 
+%\begin{equation}
+%\mu = \frac{1}{2X + Y_3 +\frac{3}{4}\qty(Y-Y_3) + \frac{4}{7}Z_{Li} + \frac{5}{7} Z_{Be}}
+%\end{equation}
+
+%%%%%%%%
+% METHOD
+\section{Method Description} \label{sec:Method}
+%%%%%%%%
+% SOLVING EQUATIONS
+\subsection{Solving the equations}\label{subsec:Method/Solving_equations}
+With the governing equations established we need to develop an algorithm for solving the system. Solving \cref{eq:dr/dm,eq:dP/dm,eq:dL/dm,eq:dT/dm} requires a differential solver, where we also update the value of the three other variables $m$,$\rho$ and $\varepsilon$. For simplicity we implement a Forward Euler scheme with variable step length. Euler is just a first order method, but will be sufficient as the equations are only first order differential equations behaving quite smooth and aperiodic as a function of $m$. We know the equations should be more asymptotically near the core of the star, where $m\rightarrow 0$, so we implement a variable step length to speed up calculations when the equations behave linearly, and increase the accuracy when approaching the center. Note; for stability we integrate the equations from the initial values near the bottom of the convection zone down to the center of the star, this means our step length has to be negative.
+
+%%%%%%%%
+% FORWARD EULER SCHEME
+\subsubsection{Forward Euler scheme} \label{subsubsec:Method/Euler_scheme}
+The standard Forward Euler algorithm is quite simple. Looping over quantities $Q$, given initial values $Q_0$ one can integrate using the recursive formula
+\begin{equation}
+Q_{i+1} = Q_i \cdot \pdv{Q}{m} \partial^{} m \label{eq:Forward_Euler}.
+\end{equation}
+\subsubsection{Variable Step Length}\label{subsubsec:Method/Variable_step}
+When using variable step length, $\partial^{} m$ is recalculated after each loop in the algorithm. To find the optimal step length the following method is applied looping over each quantity $Q$, where $p$ is a chosen max relative change in $Q$:
+\begin{align}
+\qq*{require:} \frac{\abs{\partial^{}Q}}{Q} &< p = \num{1e-3} \nonumber
+\\
+\qq*{rewrite:} \pdv{Q}{m} &= f    \nonumber
+\\
+\qq*{so:} \partial^{} m_Q &= \frac{\partial^{}Q}{f} = \frac{pQ}{f}. \label{eq:DM_Q}
+\end{align}
+For the next loop in the Euler scheme, the step length is set to the minimum value of the absolute values of the calculated ${\partial^{} m_Q}$\begin{equation}
+\partial^{}m = \min{\abs{\partial^{} m_r,\, \partial^{} m_P,\, \partial^{} m_L,\, \partial^{} m_T}}. \label{eq:min_variable_step_length}
+\end{equation}
+
+%%%%%%%%
+% THE ALGORITHM
+\subsubsection{The ODE solver algorithm} \label{subsubsec:Method/Algorithm}
+The full algorithm used to solve the system goes as follows
+\begin{enumerate}
+\item initialize lists for each parameter with the initial values, using $\rho_0$ and $T_0$ we calculate the initial pressure and energy production from \cref{eq:EOS_pressure} and the methods discussed in \cref{subsec:Intro/project0}
+
+\item set an initial step length $\partial^{}m$,
+
+defaulting to ${\partial^{}m = \SI{-1e-4}{R_\odot}}$
+
+\item while the mass is not zero or becoming zero after an additional mass step repeat:
+\begin{enumerate}[i.]
+\item find the right-hand-side in \cref{eq:dr/dm,eq:dP/dm,eq:dL/dm,eq:dT/dm} and append the next value for the relevant parameters using the Forward Euler scheme. If the absolute value of \textit{all} the right-hand-sides are below $\num{1e-30}$, break the loop to not spend too much calculation time with little change
+
+\item using the updated values for $P$ and $T$ append the next $\rho$ using \cref{eq:EOS_rho}
+
+\item using the updated $T$ and $\rho$ append the next $\varepsilon$
+
+\item append the next mass value by adding $\partial^{} m$
+
+\item check for nonphysical behavior, that is if any of the parameters new values are below zero; break the integration loop and return values up to not including the last one in each parameter list
+
+\item if variable step length is enabled, find a new step length with the method discussed in \cref{subsubsec:Method/Variable_step}. If the absolute value of the new step length is below $\num{1e-20}$ due to too asymptotic behavior in one or more of the parameters, break the loop to save calculation time
+\end{enumerate}
+\end{enumerate}
+To be able to solve \cref{eq:dT/dm} the mentioned table of opacity $\kappa$ values is interpolated\footnote{By using the interpolate.interp2d method from python's scipy library} using the current logarithmic temperature 
+and radius values.
+
+%%%%%%%%%
+% SANITY CHECKS
+\subsubsection{Benchmark the Code} \label{subsubsec:Method/Benchmark}
+Before we continued with the project we did some testing of the code against some given benchmarks from the compendium to make sure the program was working as intended.\footnote{All the sanity checks may be run with output in the terminal by;  \textit{terminal $>>$ {star\_core.py} sanity}}
+\begin{enumerate}
+\item To make sure the equation of state methods were working as intended we tested that they worked both ways by controlling if 
+\begin{align*}
+\rho\qty(P\qty(\rho_0,T_0),T_0) &= \rho_0
+\\
+P\qty(\rho\qty(P_0,T_0),T_0) &= P_0
+\end{align*}
+which was fulfilled. We didn't have a given initial parameter $P_0$, so we controlled using the value from the bottom of the solar convection zone of the Sun ${P \approx \SI{5.2e14}{\pascal}}$ and settle with results within a loose tolerance.
+
+\item We compared our $\kappa$ values from the interpolation of $\log{R}$ and $\log{T}$ with the table from the compendium. Our calculated values where mostly within $\sim 0.005$ of the expected values which is treated as a success.
+
+\item Lastly we compared the full solutions of radius, luminosity, temperature and density against plots from the compendium, using the given initial parameters and dynamical step size turned off. The plots from the compendium are a bit outdated which meant that our results differed a tiny bit, but the general trend of the solutions were identical.
+\end{enumerate}
+In addition we implemented output of the program-flow while calculating, to keep track of parameter values, integration loop number and step size to make debugging easier.
+
+%%%%%%%%%%%
+% EXPERIMENTING WITH INITIAL PARAMETERS
+\subsection{Experimenting with Different Initial Parameters}
+\label{subsub:Method/Experimenting_initial_params}
+
+\subsubsection{Parameters to Vary}
+Of the parameters we are to vary; the initial radius, temperature, density and pressure, we chose to exclude experimentation with the pressure. The reason is that the initial pressure used in the calculations is determined from the equation of state \cref{eq:EOS_pressure}. Therefore, by experimenting with different temperatures and densities the pressure is changing as well. To avoid over complicating the code and save time experimenting we kept the calculation of pressure as initially implemented in the code, and tested with varying radii, temperatures and densities. By varying the initial pressure as well would just produce similar effects as changing the temperature and density, governed by \cref{eq:EOS_pressure}.
+
+In the following \cref{subsubsec:Method/Different_radii,subsubsec:Method/Different_densities,subsubsec:Method/Different_temperatures} the results from the experimentation is discussed.\footnote{All the experimentation with output from the calculations may be run in the terminal by;  \textit{terminal $>>$ {star\_core.py} experiment}.} Note that the given initial parameters are denoted as $Q_0$ while the initial value used in the calculations are denoted $Q0$. While experimenting with a particular quantity, the rest of the initial values are left as given. Plots included in \cref{fig:Experiementing}.
+
+\subsubsection{Different initial radii} \label{subsubsec:Method/Different_radii}
+From the experimentation with different radii the results differ drastically between the different initial values. Here we only tested with values spanning from $0.2$ to $1.5$ times the original given initial parameter $R_0$. From the plot one can clearly see that for higher values of $R0$ nothing much happens to the different quantities before the star runs out of mass and the calculations are stopped. For the lowest values of $R0\leq 0.57R_0$ we have some interesting behavior. Here the luminosity starts to decrease while the other quantities are increasing towards the core. This indicates that we are closer to a realistic star using lower radii. Notice that for the two lowest radii, the luminosity reaches zero long before the mass runs out. Of the different values used here, $R0 = 0.57R_0$ are the closest to reaching our goals. The heavy radius dependency makes sense from the governing equations, \cref{sec:Governing_equations}, as we have equations that goes like $\propto r^{-4}$ and $r^{-2}$.
+
+\subsubsection{Different initial temperature} \label{subsubsec:Method/Different_temperatures}
+The different initial temperatures have some interesting results. For the lowest $T0=0.2T_0$ the density and pressure acts strangely. The reason for this is uncertain, but we see the temperature increasing fast in the beginning which may imply that the initial value are nonphysical. While, of the different temperatures tested, the radius looks best for this low temperature as it is atleast approaching zero. Of the higher temperatures most of the quantities behaves quite boring, while the luminosity is dispersing wildly. For the highest temperatures the luminosity is plummeting to zero and stopping the simulation. This makes sense as we know the energy production, which is the quantity governing the luminosity, is highly dependent on temperature. While most of these results are nonphysical, we can conclude that changing the temperature is highly effective for controlling the luminosity.
+
+\subsubsection{Different initial densities} \label{subsubsec:Method/Different_densities}
+The different densities values where changing the results the least of the different experiments. Of the values tested, only the lowest density produced interesting and physical results, except for the luminosity which didn't seem to give any relative change using the different densities. For $\rho0 = 0.2\rho_0$ we have the radius approaching $0$ nicely together with the mass, while the density, pressure and temperature seems to increase physically towards the center core. Notice the dip in the last part of the density, which reasons are uncertain. This could be a side-effect of the numerical calculations, and seems to happen at the same mass where the radius has its final dip around $M/M_0 = 0.1$. For the higher densities not much is changing from calculations with the given initial value. We notice some similar trends in the high temperatures and densities, so changing the temperature and densities produce some of the same effects. This also indicates that decreasing one and increasing the other would compensate for some of the changes.
+%
+\begin{figure*}
+\thisfloatpagestyle{empty}
+\centering
+    \includegraphics[height=0.33\textheight]{../plots/{plot_experiment_change_R0}.pdf}
+    \includegraphics[height=0.33\textheight,keepaspectratio]{../plots/{plot_experiment_change_T0}.pdf}
+    \includegraphics[height=0.33\textheight,keepaspectratio]{../plots/{plot_experiment_change_rho0}.pdf}
+    \caption{Experimenting with different initial values while keeping the rest as given. In each figure radius, densities and temperatures are varied respectively and the full solution is shown. The red dotted lines indicate the first goal mentioned in \cref{subsec:governing/goals}. Where the graphs stop prematurely are points where the calculation has been forcefully stopped due to some of the tests mentioned in the algorithm \cref{subsubsec:Method/Algorithm}. The results are discussed further in \ref{subsub:Method/Experimenting_initial_params}.}
+    \label{fig:Experiementing}
+\end{figure*}
+%%%%%%%%%
+% FIND PHYSICAL STAR
+\subsection{Finding Physical Stars} \label{subsec:Method/Find_star}
+We want to find a set of initial values ${R0,\,T0}$ and $\rho0$ producing a physical stellar core. This was done in a combination of numerical brute force and manual searching to apply the knowledge gained from the experimentation. First we developed a method solving the set of equations for all combinations of 10 equally spaced variations of the initial values in the ranges
+\begin{enumerate}[\textbullet]
+\item $T0 \in \{$\numrange{0.2}{0.5}$\} \times T_0$
+
+\item $R0 \in \{$\numrange{0.2}{0.9}$\} \times R_0$
+
+\item $\rho0 \in \{$\numrange{0.2}{1.5}$\} \times \rho_0$.
+\end{enumerate}
+For each combination using a set of initial values, the set of solutions are passed to a function determining if the two goals in \cref{subsec:governing/goals} have been reached numerically. If so, the set of solutions are plotted with the used $R0$ and $T0$ displayed and including all the solutions for the 10 different densities to reduce the total amount of plots. Then, each plot is manually searched for the best set of initial parameters. Here we look for well behaved continuous functions without too much asymptotic behavior.\footnote{All the found solutions with plots and output from the calculations may be run in the terminal by;  \textit{terminal $>>$ {star\_core.py} findmystar}. Note that this will take some time. Unfortunately this was not timed, but the hole calculation is done in about 10 minutes.}
+
+When searching we found a lot of different sets of parameters which produced approximately the same stars. As we saw from the experimentation, increasing $T$ and reducing $\rho$ and vice versa produced approximately the same effects. Now with the new insight from the good solutions we notice a few more relations
+\begin{enumerate}[\textbullet]
+\item less good solutions for higher radii. Also for higher $R0$ the interchangeable behavior of $T$ and $\rho$ seems more neglect-able; almost all the good solutions have a low density. First when the temperature is really low the density start increasing. The solutions display a more asymptotic behavior near $m\rightarrow0$ for the density, pressure and temperature while the luminosity doesn't start decreasing before $M/M0 \leq 0.3$.
+
+\item more good solutions for low radii, while the relationship between $T$ and $\rho$ is more prominent. Generally lower radius demands a higher density. Compared to higher radii, with the lower ones we find good solutions spanning more density values. The solutions seems to behave better for low radii, displaying less asymptotic behavior. In addition, the core is reaching further out in the star, that is the luminosity starts decreasing earlier and smoother, at around $M/M0 \leq 0.7$.
+\end{enumerate}
+Finally we are left with a quite large number of initial value sets that produces good stars. Using the spanned values we found stable stars for four different radii, ${\frac{R0}{R_0} \in \{\text{\numlist{0.51;0.59;0.67;0.74}}\}}$. The good sets are again plotted together to get a better impression of the different solutions, where the highest and lowest radii solutions are displayed in \cref{fig:Inspected_good_solutions}.\footnote{All the plots inspecting the good solutions with output from the calculations may be run in the terminal by;  \textit{terminal $>>$ {star\_core.py} deeperlook}.}
+\begin{figure*}[h!]
+\floatpagestyle{fancy}
+\centering
+    \includegraphics[width=0.99\textwidth]{../plots/{plot_0.51R0}.pdf}
+    \includegraphics[width=0.99\textwidth]{../plots/{plot_0.74R0}.pdf}
+    \caption{Close inspection of the found solutions after manual searching of accepted stars. Displayed are the lowest good radius $R0 = 0.51R_0$ and the highest, $R0 = 0.74R_0$. The red dotted lines indicate the first goal mentioned in \cref{subsec:governing/goals}. The results are discussed further in \cref{subsec:Method/Find_star}.}
+    \label{fig:Inspected_good_solutions}
+\end{figure*}
+
+\section{Conclusion and Final Result} \label{sec:Conclution}
+In the end we are left with $22$ sets of good initial values\footnote{After scrapping a lot of sets, due to very similar results and not to overwhelm the figures with graphs.}, of which some are probably more physical than others, but they all behave smooth and achieve both our goals. All the solutions are displayed in \cref{fig:Final_plot_high,fig:Final_plot_low}. We have here chosen to include all the good models, as we're quite happy with the amount of good solutions found, and it is striking to see the similar behavior for all the different initial values.\footnote{All the final plots of the good solutions with output from the calculations may be run in the terminal by;  \textit{terminal $>>$ {star\_core.py} good}.} To chose the best one is a challenging task, but we chose to elaborate around the solution from the lowest radius with initial values
+\begin{equation}
+\begin{aligned}
+R0 &= 0.51\cdot R_0 \approx \SI{2.556e8}{\meter}
+\\
+T0 &= 0.82\cdot T_0 \approx \SI{4.62e6}{\kelvin}
+\\
+\rho0 &= 0.63\cdot \rho_0 \approx \SI{4.52e3}{\kilogram\per\cubic\meter}.
+\end{aligned}
+\label{eq:Final_good_values}
+\end{equation}
+Note that this is the <<deep red>> second graph in the lower plot in \cref{fig:Final_plot_low}. Also included is an enlarged plot of the solution alone in \cref{fig:chosen_best}.\footnote{To run the simulation of only the chosen model can be done in the terminal by;  \textit{terminal $>>$ {star\_core.py} onlygood}} This solution behaves really good, with the scaled mass and luminosity reaching zero as the mass reaches zero. The final values from the simulation in SI units and scaled quantities found in \cref{tab:Final values best model}. The density and pressure has a slight increase close to $R \rightarrow 0$, if this is a numerical error due to the dependency on $r^{-4}$ in some of the governing equations or a physical effect is yet uncertain. The reason might be that the temperature reaches such a high value that the energy production enters a new domain where the PP-II and PP-III chains start dominating as the reaction rates are heavily temperature dependent.
+\begin{table}[]
+\resizebox{0.49\textwidth}{!}{%
+\begin{tabular}{|c|c|c|}
+\hline
+\textbf{Parameter} & \textbf{Final value in SI}         & \textbf{Final scaled value} \\ \hline
+$M$                & $\SI{1.604e28}{\kilogram}$         & $\num{1.008e-2}$            \\
+$R$                & $\SI{7.191e6}{\meter}$             & $\num{2.814e-2}$            \\
+$L$                & $\SI{4.074e20}{\watt}$             & $\num{2.059e-6}$            \\
+$T$                & $\SI{1.625e7}{\kelvin}$            &                             \\
+$P$                & $\SI{5.080e16}{\pascal}$           &                             \\
+$\rho$             & $\SI{2.314e5}{kg\per\cubic\meter}$ & $\num{5.115e1}$             \\
+$\varepsilon$      & $\SI{4.075e-3}{J}$                 & $\num{2.275e4}$             \\ \hline
+\end{tabular}%
+}
+\caption{The final values from the chosen best model in both SI units and scaled with the initial value.}
+\label{tab:Final values best model}
+\end{table}
+
+\subsection{Final Note on Stable Stars} \label{subsec:conclusion/Stable_star}
+Without this being confirmed, probably a middle ground between a big star and a small star should be the most physical and stable under our assumptions. We know that a big star is massive and has high a temperature, and to avoid unstable equations as there is heavy temperature and radius dependent they should be avoided. On the other hand, if the radius becomes too small, the star is closer to being a brown dwarf, where we don't account for the degeneracy pressure contribution. As the final good results showed, and the chosen best model, the medium radii gave the best solutions as expected.
+\subsection{Problems and Difficulties}
+During the development of this project we've had few problems all in all. There were some difficulties in handling the different units and logarithms from the opacity table. Also, getting a good understanding of the similar effects and compensations when altering different parameters was challenging, as the equations are highly coupled. The most difficulties were actually in the code for calculating the energy production mention in \ref{subsec:Intro/project0}, where there was some confusion of what was supposed to be done and a lot of numbers and relations to keep track of.Without being specific we found the problem texts to be quite difficult to follow and interpret, and hope that this paper answers the problem sufficiently. Finally, the plots of how the radius as a function of mass changed for different static step sizes are not included, as there were little to no change to bee seen from the different step sizes.
+\begin{figure*}
+\thisfloatpagestyle{empty}
+\centering
+    \includegraphics[width=0.99\textwidth]{../plots/{plot_good_star_new_mu0.74R0}.pdf}
+    \includegraphics[width=0.99\textwidth]{../plots/{plot_good_star_new_mu0.67R0}.pdf}
+    \caption{Final plot of the good solutions for the two highest radii. Here the red dashed lines indicate the first goal as before, while the blue lines indicate goal 2. The vertical blue lines mark the start of the stellar core, while the horizontal one mark $L/L_0 = 0.995$.}
+    \label{fig:Final_plot_high}
+\end{figure*}
+%
+\begin{figure*}
+\thisfloatpagestyle{empty}
+\centering
+    \includegraphics[width=0.99\textwidth]{../plots/{plot_good_star_new_mu0.59R0}.pdf}
+    \includegraphics[width=0.99\textwidth]{../plots/{plot_good_star_new_mu0.51R0}.pdf}
+    \caption{Final plot of the good solutions for the two lowest radii. Here the red dashed lines indicate the first goal as before, while the blue lines indicate goal 2. The vertical blue lines mark the start of the stellar core, while the horizontal one mark $L/L_0 = 0.995$.}
+    \label{fig:Final_plot_low}
+\end{figure*}
+%
+\begin{sidewaysfigure*}
+\thisfloatpagestyle{empty}
+\centering
+\includegraphics[height=0.99\textwidth,width=0.9\paperheight,keepaspectratio]{../plots/{plot_good_star_new_mubest_of_0.51R0}.pdf}
+\caption{Single plot of the chosen best model with $R0=0.51R_0$, $T0=0.82T_0$ and $\rho0 = 0.63\rho_0$. Here the mass and luminosity reaches zero when the radius does so. In addition the core of the star reaches far out and there is little asymptotic behavior. The red dashed lines indicate goal 1 and the blue dashed line goal 2 from \cref{subsec:governing/goals}.}
+\label{fig:chosen_best}
+\end{sidewaysfigure*}
+%%%%%%%%
+% END OF DOCUMENT
+\end{document}

@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import interp2d
 
 import sys
-#sys.path.append("../project_0")     # for own use when developing
+sys.path.append("../project_0")     # for own use when developing
 
 from engine import stellar_engine,test_engine_1,test_engine_2
 import Solar_parameters as Sun      # Holding different given parameters for the Sun
@@ -71,7 +71,7 @@ class my_stellar_core():
                     - 3*self.get_opacity(T[-1],rho[-1])*L[-1]/(256*pi**2*self.sigma*r[-1]**4*T[-1]**3),
                     - self.G*M[-1]/(4*pi*r[-1]**4)] # Order: dr, dL, dT, dP
 
-    def ODE_solver(self,input_dm = -1e-4*Sun.M,variable_step=False):
+    def ODE_solver(self,RHS=RHS_problem,input_dm = -1e-4*Sun.M,variable_step=False):
         """
         Solves the system of differential equations using Forward Euler
         @ variable_step - True or False, wheter to use adaptive step or not
@@ -113,7 +113,7 @@ class my_stellar_core():
 
         while M[-1]>0 and M[-1]+dm>0:   # Integration loop using Euler until mass reaches zero
             # Finding right hand side values for diff eqs:
-            d_params = np.asarray(self.RHS_problem(M,diff_params,eq_params)) # d_params is the f in the variable.pdf 
+            d_params = np.asarray(RHS(self,M,diff_params,eq_params)) #self.RHS_problem(M,diff_params,eq_params)) # d_params is the f in the variable.pdf 
             if np.all(np.abs(d_params)<1e-30):  # If all the differential is below this value break loop to save time
                 break
 

@@ -1,5 +1,5 @@
 '''
-File containing know parameters from the Sun
+File containing known parameters from the Sun
 '''
 
 ## General parameters

@@ -65,8 +65,9 @@ class stellar_engine:
 
         if self.T < 1e6:    # Check if upper electron capture limit is needed
             if self.l_e7 > 1.57e-7/self.N_A/self.n_e:
-                print('Upper electron capture limit used!')
+                #print('Upper electron capture limit used!')
                 self.l_e7 = 1.57e-7/self.N_A/self.n_e
+                pass
         
         #print ('lambdas\n',self.l_pp,self.l_33,self.l_34,self.l_e7,self.l_17_,self.l_17)
         

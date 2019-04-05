@@ -62,16 +62,7 @@ class my_stellar_core():
         self.R0059_T_rho = [[0.9,0.34],[0.74,0.34],[0.59,0.34],[0.43,0.34],[0.36,0.49],[0.28,0.7]]
         self.R0051_T_rho = [[0.9,0.55],[0.82,0.63],[0.67,0.63],[0.51,0.8],[0.43,1.],[0.36,1.21]]
 
-    def RHS_problem(self,M,diff_params,eq_params):
-        """ Defines the right-hand-side of differential equations """
-        r,L,T,P = diff_params
-        rho,eps = eq_params
-        return [1/(4*pi*r[-1]**2*rho[-1]),
-                    eps[-1],
-                    - 3*self.get_opacity(T[-1],rho[-1])*L[-1]/(256*pi**2*self.sigma*r[-1]**4*T[-1]**3),
-                    - self.G*M[-1]/(4*pi*r[-1]**4)] # Order: dr, dL, dT, dP
-
-    def ODE_solver(self,RHS=RHS_problem,input_dm = -1e-4*Sun.M,variable_step=False):
+    def ODE_solver(self,RHS,input_dm = -1e-4*Sun.M,variable_step=False):
         """
         Solves the system of differential equations using Forward Euler
         @ variable_step - True or False, wheter to use adaptive step or not
@@ -88,7 +79,7 @@ class my_stellar_core():
             print('P   = {:.3e}, P/P0   = {:.3e}'.format(P[-1],P[-1]/P[0]))
             print('rho = {:.3e}, rho/rho0   = {:.3e}'.format(rho[-1],rho[-1]/rho[0]))
             print('eps = {:.3e}, eps/eps0   = {:.3e}\n'.format(epsilon[-1],epsilon[-1]/epsilon[0]))
-            
+
         engine = stellar_engine     # Create object for energy calculation
         # Lists for storing integration values for each variable, starting with initial values:
         r = [self.R0]
@@ -107,17 +98,38 @@ class my_stellar_core():
 
         dm = input_dm       # Initial step mass size - changes if variable step length is active
         i = 0               # Keeping track of nr of iterations
-        p = 1e-3            # Variable step size fraction tolerance
+        p = 0.01            # Variable step size fraction tolerance
+
         broken = False      # Flow control parameter
         list_with_arrays = []         # Converting each list to arrays stored in the list arrays at the end
-
+        # print('Before iterations')
+        # print_progress()
         while M[-1]>0 and M[-1]+dm>0:   # Integration loop using Euler until mass reaches zero
+            self.set_current_selfs([r[-1],L[-1],T[-1],P[-1],rho[-1],epsilon[-1],M[-1]])  # Update current self.parameter values
             # Finding right hand side values for diff eqs:
-            d_params = np.asarray(RHS(self,M,diff_params,eq_params)) #self.RHS_problem(M,diff_params,eq_params)) # d_params is the f in the variable.pdf 
-            if np.all(np.abs(d_params)<1e-30):  # If all the differential is below this value break loop to save time
+            d_params = np.asarray(RHS(M,diff_params,eq_params)) # d_params is the f in the variable.pdf 
+            if np.all(np.abs(d_params)<1e-30):  # If all the differentials are below this value break loop to save time
                 break
 
             dr,dL,dT,dP = d_params  # Unpack for easier reading
+
+            if variable_step:
+                # To avoid overflow in division I set a minimum value on the d_params
+                if np.any(np.abs(d_params)<1e-35):
+                    # Still have to take into account the sign of the value:
+                    for i,d_value in enumerate(d_params):
+                        if np.abs(d_value)<1e-35:   
+                            d_params[i] = d_value/np.abs(d_value) * 1e-35  # set the value to pluss/minus 1e-35
+
+                # Getting an array with only the last elements of each parameter in diff_params
+                current_last_values = np.asarray([item[-1] for item in diff_params])
+                # Fractional change in variables
+                dV_V = np.abs(current_last_values/d_params)        
+                # If the fractional change in any one variable is higher than the tolerance adjust dm
+                if np.any(dV_V>p):
+                    dm = -np.min(np.abs(p*current_last_values/d_params))
+                    if np.abs(dm)<1e12: # If the step size becomes too small break iterations
+                        break           # This takes care of too asymptotal behavior and stops the loop
 
             # Update differential parameters:
             P.append(P[-1] + dm*dP)
@@ -143,29 +155,16 @@ class my_stellar_core():
                     list_with_arrays.append(np.asarray(Q[:-1]))
                 break
 
-            if variable_step:
-                # To avoid overflow in division I set a minimum value on the d_params
-                if np.any(np.abs(d_params)<1e-35):
-                    # Still have to take into account the sign of the value:
-                    for i,d_value in enumerate(d_params):
-                        if np.abs(d_value)<1e-35:   
-                            d_params[i] = d_value/np.abs(d_value) * 1e-35  # set the value to pluss/minus 1e-35
-
-                # Getting an array with only the last elements of each parameter in diff_params
-                current_last_values = np.asarray([item[-1] for item in diff_params])
-                # Fractional change in variables
-                dV_V = np.abs(current_last_values/d_params)        
-                # If the fractional change in any one variable is higher than the tolerance adjust dm
-                if np.any(dV_V>p):
-                    dm = -np.min(np.abs(p*current_last_values/d_params))
-                    if np.abs(dm)<1e20: # If the step size becomes too small break iterations
-                        break           # This takes care of too asymptotal behavior and stops the loop
-
             if (i%4000 == 0):
                 print_progress()
             i += 1
+            if i > 1e5:
+                print('Breakig due to too many iterations')
+                break
         
         if not broken:
+            # If not broken, Calling RHS again, used in p2 RHS to get the last values:
+            RHS(M,diff_params,eq_params)    
             print('\n',25*'-')
             print('{:^25s}'.format('Final values of parameters'))
             print_progress()
@@ -190,7 +189,7 @@ class my_stellar_core():
         # Vary the given parameter of the original initial value in this loop
         for scale in np.linspace(low,high,nr):
             attributes[Q] = scale*self.given_initial_params[Q]
-            solutions.append(self.ODE_solver(variable_step=True))
+            solutions.append(self.ODE_solver(RHS=self.get_RHS_p1, variable_step=True))
         
         attributes[Q] = self.given_initial_params[Q] # Set the self.parameter value back to original for fourther testing   
         if returning:
@@ -269,14 +268,14 @@ class my_stellar_core():
             self.R0 = 0.51*g_i_p['R0']
             self.T0 = 0.82*g_i_p['T0']
             self.rho0 = 0.63*g_i_p['rho0']
-            solutions = [self.ODE_solver(variable_step=True)]
+            solutions = [self.ODE_solver(RHS=self.get_RHS_p1,variable_step=True)]
         else:
             solutions = []  
             for T_rho in different_R0[what_R0]:
                 self.R0 = float(what_R0)*g_i_p['R0']
                 self.T0 = T_rho[0]*g_i_p['T0']
                 self.rho0 = T_rho[1]*g_i_p['rho0']
-                solutions.append(self.ODE_solver(variable_step=True))
+                solutions.append(self.ODE_solver(RHS=self.get_RHS_p1,variable_step=True))
         if final == 0:   # If not final, plot using experiment method
             self.plot_set_of_solutions(solutions,filename='plot_'+what_R0+'R0',multible_parameters='T0,rho0',title_string=values[i]+r'$R_0$',show=Show)
         else:
@@ -289,6 +288,19 @@ class my_stellar_core():
 
     # --- Convenient functions, plotters and getters ---- #
     # --------------------------------------------------- #
+    def get_RHS_p1(self,M,diff_params,eq_params):
+        """ Defines the right-hand-side of differential equations """
+        # print('RHS in p1')
+        # print('m',M)
+        # print('diff',diff_params)
+        # print('eq',eq_params)
+        r,L,T,P = diff_params
+        rho,eps = eq_params
+        return [1/(4*pi*r[-1]**2*rho[-1]),
+                    eps[-1],
+                    - 3*self.get_opacity(T[-1],rho[-1])*L[-1]/(256*pi**2*self.sigma*r[-1]**4*T[-1]**3),
+                    - self.G*M[-1]/(4*pi*r[-1]**4)] # Order: dr, dL, dT, dP
+
     def plot_set_of_solutions(self,solutions,filename=0,show=False,multible_parameters=0,title_string=''):
         """
         Method for plotting a set of solutions for each parameter
@@ -380,6 +392,7 @@ class my_stellar_core():
             plt.savefig('./plots/'+filename+'.pdf')
         if show:
             plt.show()
+   
     def plot_good_stars(self,solutions,filename=0,show=False,title_string=''):
         """
         Elaborate method for plotting the good final stars
@@ -458,6 +471,12 @@ class my_stellar_core():
             print('{:^11.3e}|{:^11.3e}|{:^11.6f}'.format(computed,expected,rel_error))
         print('-'*35)
 
+    def set_current_selfs(self,current_parameters):
+        """
+        Takes list of values and sets each self.parameter
+        @ current_parameters - order: r,L,T,P,rho,epsilon,M
+        """
+        self.R,self.L,self.T,self.P,self.rho,self.eps,self.M = current_parameters
 
     def read_opacity(self,filename='opacity.txt'):
         """
@@ -473,7 +492,6 @@ class my_stellar_core():
 
         self.log_kappa_interp2d = interp2d(log_R,log_T,log_kappa,kind='linear')
         self.has_read_opacity_file = True
-
 
     def get_opacity(self,T,rho):
         """
@@ -530,7 +548,7 @@ class my_stellar_core():
         # Set up axes and fig objects
         fig, ((Rax,Lax),(Tax,Dax)) = plt.subplots(2,2,figsize = (14.3,8),sharex='all')
 
-        r,L,T,P,rho,eps,M = test_object.ODE_solver(variable_step=True)
+        r,L,T,P,rho,eps,M = test_object.ODE_solver(RHS=self.get_RHS_p1,variable_step=True)
         scaled_mass = M/Sun.M
 
         Rax.set_title('Radius vs mass')
@@ -646,6 +664,6 @@ if __name__ == '__main__':
             Star.deeper_look_at_good_solutions(what_R0='0.74',final=1)
         
         if sys.argv[1] == 'onlygood' or sys.argv[1] == 'Onlygood':  # Run ONLY the chosen best solution
-            Star.deeper_look_at_good_solutions(final=1,only_best=1)
+            Star.deeper_look_at_good_solutions(final=1,only_best=1,Show=True)
     
     

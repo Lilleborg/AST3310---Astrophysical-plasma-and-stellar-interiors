@@ -34,14 +34,16 @@ class my_star(my_stellar_core):
         self.sanity = False             # boolean for use in sanity checks
 
     def ODE_solver(self,RHS,input_dm = -1e-20*Sun.M,variable_step=True):
-        self.Fc_list = []   # Create list to store the convective flux values
-        self.Fr_list = []
-        self.nabla_stable_list = []
-        self.nabla_star_list = []
-        self.energy_PP1_list = []
+        # Create list to store values at each shell
+        self.Fc_list = []           # convective flux
+        self.Fr_list = []           # radiative flux
+        self.nabla_stable_list = [] # Nabla stable
+        self.nabla_star_list = []   # Nabla star
+        self.energy_PP1_list = []   # Energy from each reaction
         self.energy_PP2_list = []
         self.energy_PP3_list = []
-        solutions = super().ODE_solver(RHS,input_dm,variable_step)
+        # Use same ODE_solver as in P1: (new RHS function)
+        solutions = super().ODE_solver(RHS,input_dm,variable_step) 
         return solutions
 
     # ------------- Getters/setters ------------- #
@@ -63,11 +65,20 @@ class my_star(my_stellar_core):
         self.append_tracked_quantities(nabla_stable,nabla_star)
         return rhs
 
-    get_lm = lambda self: self.alpha*self.get_Hp()
+    def get_lm(self):
+        return self.alpha*self.get_Hp()
 
-    get_v = lambda self: self.alpha/2*self.get_xi()*np.sqrt(self.get_Hp()*self.get_g())
+    def get_v(self):
+        return self.alpha/2*self.get_xi()*np.sqrt(self.get_Hp()*self.get_g())
 
-    get_g = lambda self: self.G*self.M/self.R**2
+    def get_g(self):
+        return self.G*self.M/self.R**2
+
+    # get_lm = lambda self: self.alpha*self.get_Hp()
+
+    # get_v = lambda self: self.alpha/2*self.get_xi()*np.sqrt(self.get_Hp()*self.get_g())
+
+    # get_g = lambda self: self.G*self.M/self.R**2
 
     def get_kappa(self):
         if self.sanity:  # Fixed value used in sanity checks
@@ -153,8 +164,8 @@ class my_star(my_stellar_core):
 
         if set_param_selfs:
             self.P0 = self.get_P_EOS(self.rho0,self.T0)
-            engine = stellar_engine(self.rho0,self.T0)
-            self.set_current_selfs([self.R0,self.L0,self.T0,self.P0,self.rho0,engine(),self.M0])
+            engine = stellar_engine()
+            self.set_current_selfs([self.R0,self.L0,self.T0,self.P0,self.rho0,engine(self.rho0,self.T0),self.M0])
 
     # ------------ Convenient funcs ----------- #
     # ----------------------------------------- #
@@ -164,9 +175,9 @@ class my_star(my_stellar_core):
         self.Fr_list.append(self.get_Fr())
         self.nabla_stable_list.append(nabla_stable)
         self.nabla_star_list.append(nabla_star)
-        # self.energy_PP1_list = [super().energy_PP1]
-        # self.energy_PP2_list = [super().energy_PP2]
-        # self.energy_PP3_list = [super().energy_PP3]
+        self.energy_PP1_list.append(self.engine.energy_PP1)
+        self.energy_PP2_list.append(self.engine.energy_PP2)
+        self.energy_PP3_list.append(self.engine.energy_PP3)
 
     def print_selfs(self):
         print('M   = {:.3e}, M0     = {:.3e}'.format(self.M,self.M0))
@@ -253,8 +264,8 @@ class my_star(my_stellar_core):
         self.sanity = True      # Set the sanity boolean to true
 
         self.P0 = self.get_P_EOS(self.rho0,self.T0)
-        engine = stellar_engine(self.rho0,self.T0)
-        self.set_current_selfs([self.R0,self.L0,self.T0,self.P0,self.rho0,engine(),self.M0])
+        engine = stellar_engine()
+        self.set_current_selfs([self.R0,self.L0,self.T0,self.P0,self.rho0,engine(self.rho0,self.T0),self.M0])
 
         goals = np.array([32.5e6,5.94e5,1.175e-3,0.400,65.62,0.88,0.12]) # Goal values
         # Computed values:
@@ -278,7 +289,7 @@ class my_star(my_stellar_core):
         self.set_to_default_initial_conditions(set_param_selfs=False)
     
         solutions = self.ODE_solver(RHS=self.get_RHS)#,variable_step=True)
-        self.cross_section(solutions,5)
+        self.cross_section(solutions,15)
         r = solutions[0]
         Fc = np.asarray(self.Fc_list)
         Fr = np.asarray(self.Fr_list)
@@ -297,6 +308,12 @@ class my_star(my_stellar_core):
         plt.figure()
         plt.plot(r,Fc/FcFr,label='Fc')
         plt.plot(r,Fr/FcFr,label='Fr')
+        plt.legend()
+
+        plt.figure()
+        plt.plot(r,self.energy_PP1_list,label='PP1')
+        plt.plot(r,self.energy_PP2_list,label='PP2')
+        plt.plot(r,self.energy_PP3_list,label='PP3')
         plt.legend()
         plt.show()
 

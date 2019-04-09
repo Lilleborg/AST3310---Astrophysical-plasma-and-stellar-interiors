@@ -16,7 +16,7 @@ font = {'size'   : 16}
 plt.matplotlib.rc('text', usetex=True)
 plt.matplotlib.rc('font', **font)
 
-class my_stellar_core():
+class my_stellar_core(stellar_engine):
 
     ## Some global constants
     m_u = 1.66053904e-27        # Unit atomic mass [kg]
@@ -35,7 +35,6 @@ class my_stellar_core():
     Z_Be = 1e-13           # Be7
 
     def __init__(self,filename='opacity.txt',input_name=''):
-        
         # Mean molecular weight
         self.mu_0 = 1/(2*self.X+self.Y3+3/4*(self.Y-self.Y3)+1/2*self.Z)#+4/7*self.Z_Li+5/7*self.Z_Be+1/2*self.Z)
         
@@ -70,7 +69,7 @@ class my_stellar_core():
         """
         def print_progress():
             """ Quick function for printing progress """
-            print('\nAt iteration {:d}'.format(i))
+            print('\nAt iteration {:d}'.format(iteration))
             print('dm  = {:.3e}'.format(dm))
             print('M   = {:.3e}, M/M0   = {:.3e}'.format(M[-1],M[-1]/M[0]))
             print('R   = {:.3e}, R/R0   = {:.3e}'.format(r[-1],r[-1]/r[0]))
@@ -92,12 +91,13 @@ class my_stellar_core():
         M = [self.M0]
         engine = stellar_engine(rho[0],T[0])   # Initialize engine with given rho and T
         epsilon = [engine()]                   # Calling engine gives the total energy
+        print(engine.rho)
 
         diff_params = [r,L,T,P]                # List of parameters for diff. equations
         eq_params = [rho,epsilon]              # List of parameters found with own equations
 
         dm = input_dm       # Initial step mass size - changes if variable step length is active
-        i = 0               # Keeping track of nr of iterations
+        iteration = 0               # Keeping track of nr of iterations
         p = 0.01            # Variable step size fraction tolerance
 
         broken = False      # Flow control parameter
@@ -105,6 +105,8 @@ class my_stellar_core():
         # print('Before iterations')
         # print_progress()
         while M[-1]>0 and M[-1]+dm>0:   # Integration loop using Euler until mass reaches zero
+            if (iteration%200 == 0 or iteration == 0):
+                print_progress()
             self.set_current_selfs([r[-1],L[-1],T[-1],P[-1],rho[-1],epsilon[-1],M[-1]])  # Update current self.parameter values
             # Finding right hand side values for diff eqs:
             d_params = np.asarray(RHS(M,diff_params,eq_params)) # d_params is the f in the variable.pdf 
@@ -143,6 +145,7 @@ class my_stellar_core():
             epsilon.append(engine())
             M.append(M[-1] + dm)
 
+
             # Check for negative unphysical values or if all the derivatives are approx zero
             current_last_values = np.asarray([item[-1] for item in diff_params+eq_params+[M]])
             if np.any(current_last_values<0):
@@ -155,10 +158,11 @@ class my_stellar_core():
                     list_with_arrays.append(np.asarray(Q[:-1]))
                 break
 
-            if (i%4000 == 0):
+            iteration += 1
+            if iteration==1:    # Debugging 
                 print_progress()
-            i += 1
-            if i > 1e5:
+                #exit()
+            if iteration > 1e5:
                 print('Breakig due to too many iterations')
                 break
         
@@ -189,7 +193,7 @@ class my_stellar_core():
         # Vary the given parameter of the original initial value in this loop
         for scale in np.linspace(low,high,nr):
             attributes[Q] = scale*self.given_initial_params[Q]
-            solutions.append(self.ODE_solver(RHS=self.get_RHS_p1, variable_step=True))
+            solutions.append(self.ODE_solver(RHS=self.get_RHS, variable_step=True))
         
         attributes[Q] = self.given_initial_params[Q] # Set the self.parameter value back to original for fourther testing   
         if returning:
@@ -268,14 +272,14 @@ class my_stellar_core():
             self.R0 = 0.51*g_i_p['R0']
             self.T0 = 0.82*g_i_p['T0']
             self.rho0 = 0.63*g_i_p['rho0']
-            solutions = [self.ODE_solver(RHS=self.get_RHS_p1,variable_step=True)]
+            solutions = [self.ODE_solver(RHS=self.get_RHS,variable_step=True)]
         else:
             solutions = []  
             for T_rho in different_R0[what_R0]:
                 self.R0 = float(what_R0)*g_i_p['R0']
                 self.T0 = T_rho[0]*g_i_p['T0']
                 self.rho0 = T_rho[1]*g_i_p['rho0']
-                solutions.append(self.ODE_solver(RHS=self.get_RHS_p1,variable_step=True))
+                solutions.append(self.ODE_solver(RHS=self.get_RHS,variable_step=True))
         if final == 0:   # If not final, plot using experiment method
             self.plot_set_of_solutions(solutions,filename='plot_'+what_R0+'R0',multible_parameters='T0,rho0',title_string=values[i]+r'$R_0$',show=Show)
         else:
@@ -288,7 +292,7 @@ class my_stellar_core():
 
     # --- Convenient functions, plotters and getters ---- #
     # --------------------------------------------------- #
-    def get_RHS_p1(self,M,diff_params,eq_params):
+    def get_RHS(self,M,diff_params,eq_params):
         """ Defines the right-hand-side of differential equations """
         # print('RHS in p1')
         # print('m',M)
@@ -476,7 +480,7 @@ class my_stellar_core():
         Takes list of values and sets each self.parameter
         @ current_parameters - order: r,L,T,P,rho,epsilon,M
         """
-        self.R,self.L,self.T,self.P,self.rho,self.eps,self.M = current_parameters
+        self.R,self.L,self.T,self.P,self.rho,self.epsilon,self.M = current_parameters
 
     def read_opacity(self,filename='opacity.txt'):
         """
@@ -537,7 +541,7 @@ class my_stellar_core():
     
     def plot_sanity(self):
         """ Performing the plot sanity check from app. D """
-
+        print('heis')
         # Ensure same initial parameters as in app. D
         self.R0 = 0.72*Sun.R 
         self.rho0 = 5.1*Sun.rho_avg
@@ -548,7 +552,7 @@ class my_stellar_core():
         # Set up axes and fig objects
         fig, ((Rax,Lax),(Tax,Dax)) = plt.subplots(2,2,figsize = (14.3,8),sharex='all')
 
-        r,L,T,P,rho,eps,M = test_object.ODE_solver(RHS=self.get_RHS_p1,variable_step=True)
+        r,L,T,P,rho,eps,M = test_object.ODE_solver(RHS=self.get_RHS,variable_step=True)
         scaled_mass = M/Sun.M
 
         Rax.set_title('Radius vs mass')

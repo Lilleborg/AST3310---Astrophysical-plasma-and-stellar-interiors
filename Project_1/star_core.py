@@ -27,12 +27,12 @@ class my_stellar_core(stellar_engine):
     G = 6.672e-11               # Gravitational constant [N m^2 kg^-2]
 
     # Mass fractions:
-    X = 0.7                # H
-    Y = 0.29               # He
-    Y3 = 1e-10             # He3
-    Z = 0.01               # Metals
-    Z_Li = 1e-13           # Li7
-    Z_Be = 1e-13           # Be7
+    X = 0.7                     # H
+    Y = 0.29                    # He
+    Y3 = 1e-10                  # He3
+    Z = 0.01                    # Metals
+    Z_Li = 1e-13                # Li7
+    Z_Be = 1e-13                # Be7
 
     def __init__(self,filename='opacity.txt',input_name=''):
         # Mean molecular weight
@@ -79,40 +79,37 @@ class my_stellar_core(stellar_engine):
             print('rho = {:.3e}, rho/rho0   = {:.3e}'.format(rho[-1],rho[-1]/rho[0]))
             print('eps = {:.3e}, eps/eps0   = {:.3e}\n'.format(epsilon[-1],epsilon[-1]/epsilon[0]))
 
-        engine = stellar_engine     # Create object for energy calculation
         # Lists for storing integration values for each variable, starting with initial values:
         r = [self.R0]
         L = [self.L0]
         T = [self.T0]
-        P = [self.get_P_EOS(self.rho0,self.T0)] # using equation of state to find Pressure
+        P = [self.get_P_EOS(self.rho0,self.T0)]# using equation of state to find Pressure
        
         # Aslo need lists for the density, energy production and mass through the loop:
         rho = [self.rho0]
         M = [self.M0]
-        engine = stellar_engine(rho[0],T[0])   # Initialize engine with given rho and T
-        epsilon = [engine()]                   # Calling engine gives the total energy
-        print(engine.rho)
-
+        #super().__init__()                     # Initialize energy production
+        self.engine = stellar_engine()              # Create object for energy calculation
+        epsilon = [self.engine(rho[0],T[0])]        # Calling engine gives the total energy
+        #print(engine.energy_PP1)
         diff_params = [r,L,T,P]                # List of parameters for diff. equations
         eq_params = [rho,epsilon]              # List of parameters found with own equations
 
         dm = input_dm       # Initial step mass size - changes if variable step length is active
-        iteration = 0               # Keeping track of nr of iterations
+        iteration = 0       # Keeping track of nr of iterations
         p = 0.01            # Variable step size fraction tolerance
 
-        broken = False      # Flow control parameter
-        list_with_arrays = []         # Converting each list to arrays stored in the list arrays at the end
-        # print('Before iterations')
-        # print_progress()
+        broken = False                         # Flow control parameter
+        list_with_arrays = []                  # list holding the final solutions
         while M[-1]>0 and M[-1]+dm>0:   # Integration loop using Euler until mass reaches zero
             if (iteration%200 == 0 or iteration == 0):
                 print_progress()
-            self.set_current_selfs([r[-1],L[-1],T[-1],P[-1],rho[-1],epsilon[-1],M[-1]])  # Update current self.parameter values
+            # Update current self.parameter values:
+            self.set_current_selfs([r[-1],L[-1],T[-1],P[-1],rho[-1],epsilon[-1],M[-1]]) 
             # Finding right hand side values for diff eqs:
             d_params = np.asarray(RHS(M,diff_params,eq_params)) # d_params is the f in the variable.pdf 
             if np.all(np.abs(d_params)<1e-30):  # If all the differentials are below this value break loop to save time
                 break
-
             dr,dL,dT,dP = d_params  # Unpack for easier reading
 
             if variable_step:
@@ -141,19 +138,16 @@ class my_stellar_core(stellar_engine):
 
             # Updates the rest of the parameters:
             rho.append(self.get_rho_EOS(P[-1],T[-1]))
-            engine = stellar_engine(rho[-1],T[-1])
-            epsilon.append(engine())
+            epsilon.append(self.engine(rho[-1],T[-1]))
             M.append(M[-1] + dm)
 
-
-            # Check for negative unphysical values or if all the derivatives are approx zero
+            # Check for negative unphysical values or if all the derivatives are approx zero:
             current_last_values = np.asarray([item[-1] for item in diff_params+eq_params+[M]])
             if np.any(current_last_values<0):
                 print(25*'#','\nBreaking due to unphysical values')
                 print_progress()
                 print('Returning values up to not including last!\n',25*'#','\n')
-                broken = True
-                
+                broken = True       
                 for Q in diff_params + eq_params + [M]:
                     list_with_arrays.append(np.asarray(Q[:-1]))
                 break
@@ -161,7 +155,6 @@ class my_stellar_core(stellar_engine):
             iteration += 1
             if iteration==1:    # Debugging 
                 print_progress()
-                #exit()
             if iteration > 1e5:
                 print('Breakig due to too many iterations')
                 break
@@ -173,7 +166,6 @@ class my_stellar_core(stellar_engine):
             print('{:^25s}'.format('Final values of parameters'))
             print_progress()
             print(25*'-')
-
             for Q in diff_params + eq_params + [M]:
                 list_with_arrays.append(np.asarray(Q))
 

@@ -88,10 +88,8 @@ class my_stellar_core(stellar_engine):
         # Aslo need lists for the density, energy production and mass through the loop:
         rho = [self.rho0]
         M = [self.M0]
-        #super().__init__()                     # Initialize energy production
         self.engine = stellar_engine()              # Create object for energy calculation
         epsilon = [self.engine(rho[0],T[0])]        # Calling engine gives the total energy
-        #print(engine.energy_PP1)
         diff_params = [r,L,T,P]                # List of parameters for diff. equations
         eq_params = [rho,epsilon]              # List of parameters found with own equations
 

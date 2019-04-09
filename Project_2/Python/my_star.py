@@ -147,7 +147,7 @@ class my_star(my_stellar_core):
         self.M0 = Sun.M             # [m]
         self.rho0 = 1.42e-7*Sun.rho_avg # [kg m^-3]
         self.T0 = 5770              # [K]
-        self.alpha = 2              # mix length parameter [0.5,2]
+        self.alpha = 1              # mix length parameter [0.5,2]
         # Mean molecular weight
         self.mu_0 = 1/(2*self.X+self.Y3+3/4*(self.Y-self.Y3)+1/2*self.Z)
 

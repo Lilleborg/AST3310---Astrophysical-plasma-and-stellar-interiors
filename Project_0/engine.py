@@ -2,35 +2,32 @@ from numpy import exp as exp
 import numpy as np
 
 class stellar_engine:
-    ### Constants and values defined here for faster re-initialization of objects in loops
-    N_A = 6.022e23              # Avrogados number
-    MeV = 1.602e-13             # MeV in Joule
-    m_u = 1.66053904e-27        # Unit atomic mass
-    ## Reaction-energies in Joule
-    # Shared reaction
-    Q_pp = (1.02 + 0.15 + 5.49)*MeV
+    def __init__(self):
+        ### Constants and values defined here for faster re-initialization of objects in loops
+        self.N_A = 6.022e23              # Avrogados number
+        self.MeV = 1.602e-13             # MeV in Joule
+        self.m_u = 1.66053904e-27        # Unit atomic mass
+        ## Reaction-energies in Joule
+        # Shared reaction
+        self.Q_pp = (1.02 + 0.15 + 5.49)*self.MeV
 
-    # PPI
-    Q_33 = 12.86*MeV
+        # PPI
+        self.Q_33 = 12.86*self.MeV
 
-    # PPII
-    Q_34 = 1.59*MeV
-    Q_e7 = 0.05*MeV
-    Q_17_ = 17.35*MeV
+        # PPII
+        self.Q_34 = 1.59*self.MeV
+        self.Q_e7 = 0.05*self.MeV
+        self.Q_17_ = 17.35*self.MeV
 
-    # PPIII
-    Q_17 = (0.14 + 1.02 + 6.88 + 3.00)*MeV     #missing 1.59?
+        # PPIII
+        self.Q_17 = (0.14 + 1.02 + 6.88 + 3.00)*self.MeV     #missing 1.59?
 
-    ## Mass fractions and particle numbers:
-    X = 0.7; Y = 0.29; Z = 0.01
-    Y_3 = 1e-10
-    Z_Li = 1e-13; Z_Be = 1e-13
+        ## Mass fractions and particle numbers:
+        self.X = 0.7; self.Y = 0.29; self.Z = 0.01
+        self.Y_3 = 1e-10
+        self.Z_Li = 1e-13; self.Z_Be = 1e-13
 
-    def __init__(self,rho,T,project0 = False):
-
-        ### Input arguments
-        self.rho = rho              # density
-
+    def __call__(self,rho,T,project0 = False,sanity=False):
         T90 = T/1e9                 # Scaled temperatures used in lambdas below
         T91 = T90/(1+4.95e-2*T90)
         T92 = T90/(1+0.759*T90)
@@ -40,50 +37,47 @@ class stellar_engine:
             self.Z_Li = 1e-7; self.Z_Be = 1e-7
 
         ## Particle numbers:
-        self.n_p = rho*self.X/self.m_u
-        self.n_He3 = rho*self.Y_3/(3*self.m_u)
-        self.n_He4 = rho*(self.Y-self.Y_3)/(4*self.m_u)
-        self.n_Li7 = rho*self.Z_Li/(7*self.m_u)
-        self.n_Be7 = rho*self.Z_Be/(7*self.m_u)
+        n_p = rho*self.X/self.m_u
+        n_He3 = rho*self.Y_3/(3*self.m_u)
+        n_He4 = rho*(self.Y-self.Y_3)/(4*self.m_u)
+        n_Li7 = rho*self.Z_Li/(7*self.m_u)
+        n_Be7 = rho*self.Z_Be/(7*self.m_u)
         #self.n_e = rho*(X + 2./3*Y_3+0.5*(Y-Y_3)+Z_Li/7+2/7*Z_Be)/m_u
-        self.n_e = self.n_p+2*self.n_He3+2*self.n_He4+0.5*7*self.n_Li7+0.5*7*self.n_Be7    
+        n_e = n_p+2*n_He3+2*n_He4+0.5*7*n_Li7+0.5*7*n_Be7    
 
         ## Proportion functions, e.i. lambdas:
         N_A_SI_convert = 1/self.N_A/1e6 # Scale tabulated values to lambdas in SI
-        self.l_pp = N_A_SI_convert * (4.01e-15 * T90**(-2/3) * exp(-3.380*T90**(-1/3)) * (1+0.123*T90**(1/3)+1.09*T90**(2/3)+0.938*T90))
+        l_pp = N_A_SI_convert * (4.01e-15 * T90**(-2/3) * exp(-3.380*T90**(-1/3)) * (1+0.123*T90**(1/3)+1.09*T90**(2/3)+0.938*T90))
 
-        self.l_33 = N_A_SI_convert * (6.04e10 * T90**(-2/3) * exp(-12.276*T90**(-1/3))*(1+0.034*T90**(1/3)-0.522*T90**(2/3)-0.124*T90+0.353*T90**(4/3)+0.213*T90**(-5/3)))
+        l_33 = N_A_SI_convert * (6.04e10 * T90**(-2/3) * exp(-12.276*T90**(-1/3))*(1+0.034*T90**(1/3)-0.522*T90**(2/3)-0.124*T90+0.353*T90**(4/3)+0.213*T90**(-5/3)))
 
-        self.l_34 = N_A_SI_convert * (5.61e6 * T91**(5/6)*T90**(-3/2) * exp(-12.826*T91**(-1/3)))
+        l_34 = N_A_SI_convert * (5.61e6 * T91**(5/6)*T90**(-3/2) * exp(-12.826*T91**(-1/3)))
 
-        self.l_e7 = N_A_SI_convert * (1.34e-10 * T90**(-1/2) * (1-0.537*T90**(1/3)+3.86*T90**(2/3)+0.0027*T90**(-1)*exp(2.515e-3*T90**(-1))))
+        l_e7 = N_A_SI_convert * (1.34e-10 * T90**(-1/2) * (1-0.537*T90**(1/3)+3.86*T90**(2/3)+0.0027*T90**(-1)*exp(2.515e-3*T90**(-1))))
 
-        self.l_17_ = N_A_SI_convert * ( 1.096e9*T90**(-2/3.)*exp(-8.472*T90**(-1/3.)) -4.83e8*T92**(5/6)*T90**(-3/2)*exp(-8.472*T92**(-1/3)) + 1.06e10*T90**(-3/2)*exp(-30.442/T90) ) 
+        l_17_ = N_A_SI_convert * ( 1.096e9*T90**(-2/3.)*exp(-8.472*T90**(-1/3.)) -4.83e8*T92**(5/6)*T90**(-3/2)*exp(-8.472*T92**(-1/3)) + 1.06e10*T90**(-3/2)*exp(-30.442/T90) ) 
 
-        self.l_17 = N_A_SI_convert * (3.11e5 * T90**(-2/3) * exp(-10.262*T90**(-1/3)) + 2.53e3 * T90**(-3/2) * exp(-7.306*T90**(-1)))
+        l_17 = N_A_SI_convert * (3.11e5 * T90**(-2/3) * exp(-10.262*T90**(-1/3)) + 2.53e3 * T90**(-3/2) * exp(-7.306*T90**(-1)))
 
         if T < 1e6:    # Check if upper electron capture limit is needed
-            if self.l_e7 > 1.57e-7/self.N_A/self.n_e:
+            if l_e7 > 1.57e-7/self.N_A/n_e:
                 #print('Upper electron capture limit used!')
-                self.l_e7 = 1.57e-7/self.N_A/self.n_e
+                l_e7 = 1.57e-7/self.N_A/n_e
                 pass
         
         #print ('lambdas\n',self.l_pp,self.l_33,self.l_34,self.l_e7,self.l_17_,self.l_17)
-        
-
-    def __call__(self,sanity=False):
 
         ## Initial production rate values
         # Base reaction
-        r_pp = self.n_p**2 * self.l_pp / (2*self.rho)
+        r_pp = n_p**2 * l_pp / (2*rho)
         # PPI
-        r_33 = self.n_He3**2 * self.l_33 / (2*self.rho)
+        r_33 = n_He3**2 * l_33 / (2*rho)
         # PPII
-        r_34 = self.n_He3*self.n_He4 * self.l_34 / self.rho
-        r_e7 = self.n_e*self.n_Be7 * self.l_e7 / self.rho
-        r_17_ = self.n_p*self.n_Li7 * self.l_17_ / self.rho
+        r_34 = n_He3*n_He4 * l_34 / rho
+        r_e7 = n_e*n_Be7 * l_e7 / rho
+        r_17_ = n_p*n_Li7 * l_17_ / rho
         # PPIII
-        r_17 = self.n_p*self.n_Be7 * self.l_17 / self.rho
+        r_17 = n_p*n_Be7 * l_17 / rho
 
         # Available amounts from prior reactions checks
         r_33_34 = (2*r_33 + r_34)

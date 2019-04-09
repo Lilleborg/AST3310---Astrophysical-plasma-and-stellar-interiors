@@ -30,7 +30,6 @@ class stellar_engine:
 
         ### Input arguments
         self.rho = rho              # density
-        self.T = T                  # temperatur
 
         T90 = T/1e9                 # Scaled temperatures used in lambdas below
         T91 = T90/(1+4.95e-2*T90)
@@ -63,7 +62,7 @@ class stellar_engine:
 
         self.l_17 = N_A_SI_convert * (3.11e5 * T90**(-2/3) * exp(-10.262*T90**(-1/3)) + 2.53e3 * T90**(-3/2) * exp(-7.306*T90**(-1)))
 
-        if self.T < 1e6:    # Check if upper electron capture limit is needed
+        if T < 1e6:    # Check if upper electron capture limit is needed
             if self.l_e7 > 1.57e-7/self.N_A/self.n_e:
                 #print('Upper electron capture limit used!')
                 self.l_e7 = 1.57e-7/self.N_A/self.n_e
@@ -111,10 +110,18 @@ class stellar_engine:
         e_17_ = self.Q_17_*r_17_
         e_17 = self.Q_17*r_17
 
+        # From each chain
+        self.energy_PP1 = r_33/(r_33+r_34)*e_pp + e_33  #(2*self.Q_pp+self.Q_33)*r_33 #
+        self.energy_PP2 = r_34/(2*(r_34+r_33))*e_pp+e_34+e_e7+e_17_ #(self.Q_pp+self.Q_34)*r_34 + self.Q_e7*r_e7 + self.Q_17_*r_17_ 
+        self.energy_PP3 = r_34/(2*(r_34+r_33))*e_pp+e_17_#(self.Q_pp+self.Q_34)*r_34 + self.Q_17*r_17#
+
         if sanity:
             return e_pp,e_33,e_34,e_e7,e_17_,e_17
         else:
             total_energy = e_pp+e_33+e_34+e_e7+e_17_+e_17
+            if np.abs(total_energy-(self.energy_PP1+self.energy_PP2+self.energy_PP3))>1e-6:
+                print('Total energy not equal sum of PP chains')
+                print(total_energy,self.energy_PP1+self.energy_PP2+self.energy_PP3,self.energy_PP1,self.energy_PP2,self.energy_PP3)
             return total_energy
 
 def test_engine_1():

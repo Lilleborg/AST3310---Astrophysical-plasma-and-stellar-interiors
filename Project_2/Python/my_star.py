@@ -2,19 +2,18 @@ from numpy import pi as pi
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
-from scipy.interpolate import interp2d
 
 import sys
-sys.path.append("../../project_0")     # for own use when developing
-sys.path.append("../../project_1/python/")     # for own use when developing
+sys.path.append("../../project_0")         # for own use when developing
+sys.path.append("../../project_1/python/") # for own use when developing
 
 from engine import stellar_engine,test_engine_1,test_engine_2
 from star_core import my_stellar_core
-import Solar_parameters as Sun      # Holding different given parameters for the Sun
+import Solar_parameters as Sun  # Holding different given parameters for the Sun
 
 # Plotting style
 plt.style.use('bmh')
-plt.matplotlib.rc('text', usetex=False)
+plt.matplotlib.rc('text', usetex=True)
 mpl.rcParams['figure.figsize'] = (14,8)
 
 class my_star(my_stellar_core):
@@ -33,7 +32,18 @@ class my_star(my_stellar_core):
         self.name = input_name          # optional name for the object
         self.sanity = False             # boolean for use in sanity checks
 
-    def ODE_solver(self,RHS,input_dm = -1e-20*Sun.M,variable_step=True):
+    def ODE_solver(self,RHS=0,input_dm = -1e-20*Sun.M,variable_step=True):
+        """
+        A wrapper for solving the new system of ODE using the framework in p1
+        @ RHS - A function returning the right-hand-side of the diff. system.
+            Defaults to 0, in which case the self.get_RHS are used
+        @ the other inputarguments are not used, sent to ODE_solver from p1
+        
+        Stores values for tracked quantities for each mass shell (done inside get_RHS)
+        returns set of solutions of each parameter
+        """
+        if RHS==0:
+            RHS = self.get_RHS
         # Create list to store tracked values at each mass shell
         self.Fc_list = []           # convective flux
         self.Fr_list = []           # radiative flux
@@ -42,7 +52,7 @@ class my_star(my_stellar_core):
         self.energy_PP1_list = []   # Energy from each reaction
         self.energy_PP2_list = []
         self.energy_PP3_list = []
-        # Use same ODE_solver as in P1: (new RHS function),
+        # Use same ODE_solver as in P1: (new RHS function!),
         # the convective stability check lies inside RHS which is call at each
         # mass shell!
         solutions = super().ODE_solver(RHS,input_dm,variable_step) 
@@ -58,7 +68,7 @@ class my_star(my_stellar_core):
         """
         nabla_star = self.get_nabla_star()
         nabla_stable = self.get_nabla_stable()
-        rhs = super().get_RHS(M,diff_params,eq_params)      # Get the RHS from project 1
+        rhs = super().get_RHS(M,diff_params,eq_params)# Get the RHS from project 1
 
         convective = nabla_stable > self.nabla_ad   # Test for convective stability
         if convective:  # If convective change equation for temp gradient:
@@ -66,6 +76,39 @@ class my_star(my_stellar_core):
         # Store the flux and nabla values for this r:
         self.append_tracked_quantities(nabla_stable,nabla_star)
         return rhs
+
+    def get_nabla_stable(self):
+        nominator = 3*self.L*self.get_kappa()*self.rho*self.get_Hp()
+        denominator = 64*pi*self.R**2*self.sigma*self.T**4
+        return nominator/denominator       
+
+    def get_nabla_star(self):
+        factor = 3*self.get_kappa()*self.rho*self.get_Hp()/(16*self.sigma*self.T**4)
+        return factor*(self.L/(4*pi*self.R**2)-self.get_Fc())
+
+    def get_nabla_parcel(self):
+        return self.get_nabla_star()-self.get_xi()**2
+
+    def get_xi(self):
+        # roots = np.roots([1,U/lm**2,U**2*geometric/lm**3,\
+        #                 U/lm**2*(self.nabla_ad-self.get_nabla_stable())])
+        lm = self.get_lm()
+        geometric = 4/lm    #S/Q/d = 2/r_p = 4/lm
+        U = self.get_U()
+        # Three roots, atleast one real:
+        roots = np.roots([lm**2/U,1,U*geometric/lm,\
+                        (self.nabla_ad-self.get_nabla_stable())])
+        #Take out the real root, if there are more than one give error
+        #This method is prefered over np.imag(roots)==0 as of numerical unstability
+        real_roots = np.real(roots[np.abs(np.imag(roots))<1e-7])
+        if len(real_roots)>1:
+            print('------------------------------------------------')
+            print('Found more than one real root in cubic equation!')
+            print('------------------------------------------------')
+            print(roots)
+            print(real_roots)
+            sys.exit()
+        return float(real_roots)  # Return the real root
 
     def get_lm(self):
         return self.alpha*self.get_Hp()
@@ -109,38 +152,6 @@ class my_star(my_stellar_core):
     def get_Hp(self):
         return self.P/(self.rho*self.get_g())
         #return self.k_B*self.T/(self.get_g()*self.mu_0*self.m_u)
-
-    def get_xi(self):
-        lm = self.get_lm()
-        geometric = 4/lm    #S/Q/d = 2/r_p = 4/lm
-        U = self.get_U()
-        # Three roots, atleast one real:
-        # roots = np.roots([1,U/lm**2,U**2*geometric/lm**3,\
-        #                 U/lm**2*(self.nabla_ad-self.get_nabla_stable())])
-        roots = np.roots([lm**2/U,1,U*geometric/lm,\
-                        (self.nabla_ad-self.get_nabla_stable())])
-        #Take out the real root, if there are more than one give error:
-        real_roots = np.real(roots[np.abs(np.imag(roots))<1e-7])
-        if len(real_roots)>1:
-            print('------------------------------------------------')
-            print('Found more than one real root in cubic equation!')
-            print('------------------------------------------------')
-            print(roots)
-            print(real_roots)
-            sys.exit()
-        return float(real_roots)  # Return the real root
-
-    def get_nabla_stable(self):
-        nominator = 3*self.L*self.get_kappa()*self.rho*self.get_Hp()
-        denominator = 64*pi*self.R**2*self.sigma*self.T**4
-        return nominator/denominator       
-
-    def get_nabla_star(self):
-        factor = 3*self.get_kappa()*self.rho*self.get_Hp()/(16*self.sigma*self.T**4)
-        return factor*(self.L/(4*pi*self.R**2)-self.get_Fc())
-
-    def get_nabla_parcel(self):
-        return self.get_nabla_star()-self.get_xi()**2
 
     def set_to_default_initial_conditions(self,set_param_selfs=False):
         """ Helper function to set all parameters to given intitial conditions """
@@ -244,8 +255,8 @@ class my_star(my_stellar_core):
         circY = plt.Circle((2*rmax,2*rmax),0.1*rmax,color='yellow',fill=True)
         circC = plt.Circle((2*rmax,2*rmax),0.1*rmax,color='cyan',fill=True)
         circB = plt.Circle((2*rmax,2*rmax),0.1*rmax,color='blue',fill=True)
-        ax.legend([circR, circY, circC, circB],['Convection outside core',\
-            'Radiation outside core', 'Radiation inside core', 'Convection inside core'])
+        fig.legend([circR, circY, circC, circB],['Convection outside core',\
+            'Radiation outside core', 'Radiation inside core',r'$\nabla_s$' ])#'Convection inside core'])
         
         plt.title('Cross-section of star')
         #plt.show()
@@ -253,6 +264,8 @@ class my_star(my_stellar_core):
     # ------------- Sanity checks ------------- #
     # ----------------------------------------- #
     def example_sanity(self):
+        """ Performs the sanity check from example 5.1 """
+
         # Set fixed values used in sanity check
         self.T0 = 0.9e6          # [K]
         self.rho0 = 55.9         # [kg m^-3]
@@ -286,38 +299,42 @@ class my_star(my_stellar_core):
         self.set_to_default_initial_conditions()
 
     def plot_sanity(self):
+        """ Performs the plotted sanity check from app. E """
         self.set_to_default_initial_conditions(set_param_selfs=False)
-        #mpl.rcdefaults()
-        solutions = self.ODE_solver(RHS=self.get_RHS)
+
+        solutions = self.ODE_solver()
         self.set_normalaized_energies()
-        self.cross_section(solutions,15)
+        #self.cross_section(solutions,15)
         r = solutions[0]
         Fc = np.asarray(self.Fc_list)
         Fr = np.asarray(self.Fr_list)
         FcFr = Fr+Fc
 
+        legstr = [r'$\nabla_{\text{star}}$',r'$\nabla^{\star}$',r'$\nabla_{\text{ad}}$']
         fig, ax = plt.subplots(1,1)
         ax.semilogy(r/Sun.R,self.nabla_stable_list,color='tab:blue',\
-                    label=r'$\nabla_{stable}}$',alpha=0.7)
+                    label=legstr[0],alpha=0.6)
         ax.semilogy(r/Sun.R,self.nabla_star_list,color='tab:orange',\
-                    label=r'$\nabla^\star$',alpha=0.7)
+                    label=legstr[1],alpha=0.6)
         ax.semilogy(r/Sun.R,np.ones_like(r)*self.nabla_ad,color='tab:green',\
-                    label=r'$\nabla_{ad}}$',alpha=0.7)
-        ax.legend()
+                    label=legstr[2],alpha=0.6)
         ax.set_ylim(top=1e3)
+        handles, labels = ax.get_legend_handles_labels()
+        fig.legend(handles,labels)
+        
+        #fig.savefig('./../plots/plot_sanity.pdf')
 
         # plt.figure()
         # plt.plot(r,Fc/FcFr,label='Fc')
         # plt.plot(r,Fr/FcFr,label='Fr')
         # plt.legend()
 
-        plt.figure()
-        plt.title('Not currently working')
-        plt.plot(r,self.PP1_ar,label='PP1')
-        plt.plot(r,self.PP2_ar,label='PP2')
-        plt.plot(r,self.PP3_ar,label='PP3')
-        plt.legend()
-        plt.show()
+        # plt.figure()
+        # plt.title('Not currently working')
+        # plt.plot(r,self.PP1_ar,label='PP1')
+        # plt.plot(r,self.PP2_ar,label='PP2')
+        # plt.plot(r,self.PP3_ar,label='PP3')
+        # plt.legend()
 
 if __name__ == '__main__':
     Star = my_star('Renate')
@@ -328,3 +345,4 @@ if __name__ == '__main__':
             Star.plot_sanity()
         if sys.argv[1] == 'experiment' or sys.argv[1] == 'Experiment':  # Run the initial experiments
             Star.experiment_multiple_solutions('T',low=0.2,high=5,nr=8)
+    plt.show()

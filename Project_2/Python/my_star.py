@@ -6,7 +6,7 @@ from scipy.interpolate import interp2d
 
 import sys
 sys.path.append("../../project_0")     # for own use when developing
-sys.path.append("../../project_1")     # for own use when developing
+sys.path.append("../../project_1/python/")     # for own use when developing
 
 from engine import stellar_engine,test_engine_1,test_engine_2
 from star_core import my_stellar_core
@@ -29,12 +29,12 @@ class my_star(my_stellar_core):
         # Control and program flow parameters
         self.given_initial_params = {'L0':self.L0,'M0':self.M0,'rho0':self.rho0,\
                                     'T0':self.T0,'R0':self.R0}
-        self.read_opacity('../../project_1/opacity.txt')  # Calls read_opacity() in initialization
+        self.read_opacity('../../project_1/python/opacity.txt')  # Calls read_opacity() in initialization
         self.name = input_name          # optional name for the object
         self.sanity = False             # boolean for use in sanity checks
 
     def ODE_solver(self,RHS,input_dm = -1e-20*Sun.M,variable_step=True):
-        # Create list to store values at each shell
+        # Create list to store tracked values at each mass shell
         self.Fc_list = []           # convective flux
         self.Fr_list = []           # radiative flux
         self.nabla_stable_list = [] # Nabla stable
@@ -42,7 +42,9 @@ class my_star(my_stellar_core):
         self.energy_PP1_list = []   # Energy from each reaction
         self.energy_PP2_list = []
         self.energy_PP3_list = []
-        # Use same ODE_solver as in P1: (new RHS function)
+        # Use same ODE_solver as in P1: (new RHS function),
+        # the convective stability check lies inside RHS which is call at each
+        # mass shell!
         solutions = super().ODE_solver(RHS,input_dm,variable_step) 
         return solutions
 
@@ -73,12 +75,6 @@ class my_star(my_stellar_core):
 
     def get_g(self):
         return self.G*self.M/self.R**2
-
-    # get_lm = lambda self: self.alpha*self.get_Hp()
-
-    # get_v = lambda self: self.alpha/2*self.get_xi()*np.sqrt(self.get_Hp()*self.get_g())
-
-    # get_g = lambda self: self.G*self.M/self.R**2
 
     def get_kappa(self):
         if self.sanity:  # Fixed value used in sanity checks
@@ -119,8 +115,10 @@ class my_star(my_stellar_core):
         geometric = 4/lm    #S/Q/d = 2/r_p = 4/lm
         U = self.get_U()
         # Three roots, atleast one real:
-        roots = np.roots([1,U/lm**2,U**2*geometric/lm**3,\
-                        U/lm**2*(self.nabla_ad-self.get_nabla_stable())])
+        # roots = np.roots([1,U/lm**2,U**2*geometric/lm**3,\
+        #                 U/lm**2*(self.nabla_ad-self.get_nabla_stable())])
+        roots = np.roots([lm**2/U,1,U*geometric/lm,\
+                        (self.nabla_ad-self.get_nabla_stable())])
         #Take out the real root, if there are more than one give error:
         real_roots = np.real(roots[np.abs(np.imag(roots))<1e-7])
         if len(real_roots)>1:
@@ -138,15 +136,8 @@ class my_star(my_stellar_core):
         return nominator/denominator       
 
     def get_nabla_star(self):
-        # xi = self.get_xi()
-        # lm = self.get_lm()
-        # geometric = 4/lm    #S/Q/d
-        # U = self.get_U()
-        # print('{:.3e}'.format(xi**2 + xi*U*geometric/lm))
-        # return xi**2 + xi*U*geometric/lm + self.nabla_ad
         factor = 3*self.get_kappa()*self.rho*self.get_Hp()/(16*self.sigma*self.T**4)
         return factor*(self.L/(4*pi*self.R**2)-self.get_Fc())
-        # return self.get_nabla_stable()-self.get_lm()**2/self.get_U()*self.get_xi()**3
 
     def get_nabla_parcel(self):
         return self.get_nabla_star()-self.get_xi()**2
@@ -166,6 +157,15 @@ class my_star(my_stellar_core):
             self.P0 = self.get_P_EOS(self.rho0,self.T0)
             engine = stellar_engine()
             self.set_current_selfs([self.R0,self.L0,self.T0,self.P0,self.rho0,engine(self.rho0,self.T0),self.M0])
+
+    def set_normalaized_energies(self):
+        self.PP1_ar = np.asarray(self.energy_PP1_list)
+        self.PP2_ar = np.asarray(self.energy_PP2_list)
+        self.PP3_ar = np.asarray(self.energy_PP3_list)
+        component_sum = self.PP1_ar+self.PP2_ar+self.PP3_ar
+        self.PP1_ar /= component_sum
+        self.PP2_ar /= component_sum
+        self.PP3_ar /= component_sum
 
     # ------------ Convenient funcs ----------- #
     # ----------------------------------------- #
@@ -287,8 +287,9 @@ class my_star(my_stellar_core):
 
     def plot_sanity(self):
         self.set_to_default_initial_conditions(set_param_selfs=False)
-    
-        solutions = self.ODE_solver(RHS=self.get_RHS)#,variable_step=True)
+        #mpl.rcdefaults()
+        solutions = self.ODE_solver(RHS=self.get_RHS)
+        self.set_normalaized_energies()
         self.cross_section(solutions,15)
         r = solutions[0]
         Fc = np.asarray(self.Fc_list)
@@ -297,26 +298,26 @@ class my_star(my_stellar_core):
 
         fig, ax = plt.subplots(1,1)
         ax.semilogy(r/Sun.R,self.nabla_stable_list,color='tab:blue',\
-                    label=r'$\nabla_{stable}}$')
-        ax.semilogy(r/Sun.R,np.ones_like(r)*self.nabla_ad,color='tab:green',\
-                    label=r'$\nabla_{ad}}$')
+                    label=r'$\nabla_{stable}}$',alpha=0.7)
         ax.semilogy(r/Sun.R,self.nabla_star_list,color='tab:orange',\
-                    label=r'$\nabla^\star$')
+                    label=r'$\nabla^\star$',alpha=0.7)
+        ax.semilogy(r/Sun.R,np.ones_like(r)*self.nabla_ad,color='tab:green',\
+                    label=r'$\nabla_{ad}}$',alpha=0.7)
         ax.legend()
         ax.set_ylim(top=1e3)
 
-        plt.figure()
-        plt.plot(r,Fc/FcFr,label='Fc')
-        plt.plot(r,Fr/FcFr,label='Fr')
-        plt.legend()
+        # plt.figure()
+        # plt.plot(r,Fc/FcFr,label='Fc')
+        # plt.plot(r,Fr/FcFr,label='Fr')
+        # plt.legend()
 
         plt.figure()
-        plt.plot(r,self.energy_PP1_list,label='PP1')
-        plt.plot(r,self.energy_PP2_list,label='PP2')
-        plt.plot(r,self.energy_PP3_list,label='PP3')
+        plt.title('Not currently working')
+        plt.plot(r,self.PP1_ar,label='PP1')
+        plt.plot(r,self.PP2_ar,label='PP2')
+        plt.plot(r,self.PP3_ar,label='PP3')
         plt.legend()
         plt.show()
-
 
 if __name__ == '__main__':
     Star = my_star('Renate')
@@ -325,3 +326,5 @@ if __name__ == '__main__':
         if sys.argv[1] == 'sanity' or sys.argv[1] == 'Sanity':  # Run sanity checks
             Star.example_sanity()
             Star.plot_sanity()
+        if sys.argv[1] == 'experiment' or sys.argv[1] == 'Experiment':  # Run the initial experiments
+            Star.experiment_multiple_solutions('T',low=0.2,high=5,nr=8)

@@ -531,7 +531,7 @@ class my_stellar_core(stellar_engine):
     
     def plot_sanity(self):
         """ Performing the plot sanity check from app. D """
-        print('heis')
+
         # Ensure same initial parameters as in app. D
         self.R0 = 0.72*Sun.R 
         self.rho0 = 5.1*Sun.rho_avg

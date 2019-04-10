@@ -20,7 +20,7 @@ class stellar_engine:
         self.Q_17_ = 17.35*self.MeV
 
         # PPIII
-        self.Q_17 = (0.14 + 1.02 + 6.88 + 3.00)*self.MeV     #missing 1.59?
+        self.Q_17 = (0.14 + 1.02 + 6.88 + 3.00)*self.MeV
 
         ## Mass fractions and particle numbers:
         self.X = 0.7; self.Y = 0.29; self.Z = 0.01
@@ -103,19 +103,22 @@ class stellar_engine:
         e_e7 = self.Q_e7*r_e7
         e_17_ = self.Q_17_*r_17_
         e_17 = self.Q_17*r_17
-
+        #print(e_17,e_34+e_e7+e_17_,np.abs(e_17-(e_34+e_e7+e_17_)))
         # From each chain
-        self.energy_PP1 = r_33/(r_33+r_34)*e_pp + e_33  #(2*self.Q_pp+self.Q_33)*r_33 #
-        self.energy_PP2 = r_34/(2*(r_34+r_33))*e_pp+e_34+e_e7+e_17_ #(self.Q_pp+self.Q_34)*r_34 + self.Q_e7*r_e7 + self.Q_17_*r_17_ 
-        self.energy_PP3 = r_34/(2*(r_34+r_33))*e_pp+e_17_#(self.Q_pp+self.Q_34)*r_34 + self.Q_17*r_17#
-
+        # self.energy_PP1 = r_33/(r_33+r_34)*e_pp + e_33                      #(2*self.Q_pp+self.Q_33)*r_33 #
+        # self.energy_PP2 = r_34/(2*(r_34+r_33))*e_pp+e_34+e_e7+e_17_         #(self.Q_pp+self.Q_34)*r_34 + self.Q_e7*r_e7 + self.Q_17_*r_17_ 
+        # self.energy_PP3 = r_34/(2*(r_34+r_33))*e_pp+e_17                    #(self.Q_pp+self.Q_34)*r_34 + self.Q_17*r_17#
+        self.energy_PP1 = (2*self.Q_pp+self.Q_33)*r_33
+        self.energy_PP2 = (self.Q_pp+self.Q_34)*r_34 + self.Q_e7*r_e7 + self.Q_17_*r_17_
+        self.energy_PP3 = (self.Q_pp+self.Q_34)*r_34 + self.Q_17*r_17
+        
         if sanity:
             return e_pp,e_33,e_34,e_e7,e_17_,e_17
         else:
             total_energy = e_pp+e_33+e_34+e_e7+e_17_+e_17
-            if np.abs(total_energy-(self.energy_PP1+self.energy_PP2+self.energy_PP3))>1e-6:
-                print('Total energy not equal sum of PP chains')
-                print(total_energy,self.energy_PP1+self.energy_PP2+self.energy_PP3,self.energy_PP1,self.energy_PP2,self.energy_PP3)
+            # if np.abs(total_energy-(self.energy_PP1+self.energy_PP2+self.energy_PP3))>1e-6:
+            #     print('Total energy not equal sum of PP chains')
+            #     print(total_energy,self.energy_PP1+self.energy_PP2+self.energy_PP3,self.energy_PP1,self.energy_PP2,self.energy_PP3)
             return total_energy
 
 def test_engine_1():

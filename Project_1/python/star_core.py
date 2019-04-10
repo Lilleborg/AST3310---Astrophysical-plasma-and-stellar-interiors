@@ -102,7 +102,7 @@ class my_stellar_core(stellar_engine):
         while M[-1]>0 and M[-1]+dm>0:   # Integration loop using Euler until mass reaches zero
             if (iteration%200 == 0 or iteration == 0):
                 print_progress()
-            # Update current self.parameter values:
+            # Update current self.parameter values, used for the new quantities in project 2:
             self.set_current_selfs([r[-1],L[-1],T[-1],P[-1],rho[-1],epsilon[-1],M[-1]]) 
             # Finding right hand side values for diff eqs:
             d_params = np.asarray(RHS(M,diff_params,eq_params)) # d_params is the f in the variable.pdf 
@@ -383,7 +383,7 @@ class my_stellar_core(stellar_engine):
         fig.tight_layout(rect=[0, 0, 1, 0.95],h_pad=0)
 
         if filename!=0:
-            plt.savefig('./plots/'+filename+'.pdf')
+            plt.savefig('../plots/'+filename+'.pdf')
         if show:
             plt.show()
    

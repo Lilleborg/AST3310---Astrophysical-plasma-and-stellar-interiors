@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from scipy.interpolate import interp2d
 
 import sys
-sys.path.append("../project_0")     # for own use when developing
+sys.path.append("../../project_0")     # for own use when developing
 
 from engine import stellar_engine,test_engine_1,test_engine_2
 import Solar_parameters as Sun      # Holding different given parameters for the Sun
@@ -53,6 +53,9 @@ class my_stellar_core(stellar_engine):
         self.has_read_opacity_file = False
         self.read_opacity(filename) # Calls read_opacity() in initialization
         self.name = input_name      # optional name for the object
+        self.break_goals = False
+        self.debug = True
+        self.project_2 = False
 
         # Found good initial parameters for radius, temperature and density
         # from find_my_star() method and manual inspection of plots
@@ -61,7 +64,7 @@ class my_stellar_core(stellar_engine):
         self.R0059_T_rho = [[0.9,0.34],[0.74,0.34],[0.59,0.34],[0.43,0.34],[0.36,0.49],[0.28,0.7]]
         self.R0051_T_rho = [[0.9,0.55],[0.82,0.63],[0.67,0.63],[0.51,0.8],[0.43,1.],[0.36,1.21]]
 
-    def ODE_solver(self,RHS,input_dm = -1e-4*Sun.M,variable_step=False):
+    def ODE_solver(self,RHS,input_dm = -1e-4*Sun.M,variable_step=False,goal_testing=False):
         """
         Solves the system of differential equations using Forward Euler
         @ variable_step - True or False, wheter to use adaptive step or not
@@ -95,12 +98,15 @@ class my_stellar_core(stellar_engine):
 
         dm = input_dm       # Initial step mass size - changes if variable step length is active
         iteration = 0       # Keeping track of nr of iterations
-        p = 0.01            # Variable step size fraction tolerance
+        p = 1e-3            # Variable step size fraction tolerance
+        if self.project_2:
+            p = 0.01
 
-        broken = False                         # Flow control parameter
+        unphysical = False                     # Flow control parameters
+        low_dm = False
         list_with_arrays = []                  # list holding the final solutions
         while M[-1]>0 and M[-1]+dm>0:   # Integration loop using Euler until mass reaches zero
-            if (iteration%200 == 0 or iteration == 0):
+            if (iteration%500 == 0 and self.debug or iteration == 1 and self.debug or iteration == 0):
                 print_progress()
             # Update current self.parameter values, used for the new quantities in project 2:
             self.set_current_selfs([r[-1],L[-1],T[-1],P[-1],rho[-1],epsilon[-1],M[-1]]) 
@@ -125,7 +131,8 @@ class my_stellar_core(stellar_engine):
                 # If the fractional change in any one variable is higher than the tolerance adjust dm
                 if np.any(dV_V>p):
                     dm = -np.min(np.abs(p*current_last_values/d_params))
-                    if np.abs(dm)<1e12: # If the step size becomes too small break iterations
+                    if np.abs(dm)<1e15: # If the step size becomes too small break iterations
+                        low_dm = True
                         break           # This takes care of too asymptotal behavior and stops the loop
 
             # Update differential parameters:
@@ -139,28 +146,34 @@ class my_stellar_core(stellar_engine):
             epsilon.append(self.engine(rho[-1],T[-1]))
             M.append(M[-1] + dm)
 
+            # Check if project goals are vialated
+            if goal_testing:
+                self.is_result_good(diff_params+eq_params+[M],inODE=True)
+                if self.break_goals:
+                    break
+
             # Check for negative unphysical values or if all the derivatives are approx zero:
             current_last_values = np.asarray([item[-1] for item in diff_params+eq_params+[M]])
             if np.any(current_last_values<0):
                 print(25*'#','\nBreaking due to unphysical values')
                 print_progress()
                 print('Returning values up to not including last!\n',25*'#','\n')
-                broken = True       
+                unphysical = True       
                 for Q in diff_params + eq_params + [M]:
                     list_with_arrays.append(np.asarray(Q[:-1]))
                 break
 
             iteration += 1
-            if iteration==1:    # Debugging 
-                print_progress()
             if iteration > 1e5:
                 print('Breakig due to too many iterations')
                 break
-        
-        if not broken:
-            # If not broken, Calling RHS again, used in p2 RHS to get the last values:
-            RHS(M,diff_params,eq_params)    
-            print('\n',25*'-')
+
+        if not unphysical:
+            if not low_dm:
+                # If not broken by to low dm, Calling RHS again
+                # Needed in p2 RHS to include the last appended values
+                RHS(M,diff_params,eq_params) 
+            print('\n'+25*'-')
             print('{:^25s}'.format('Final values of parameters'))
             print_progress()
             print(25*'-')
@@ -184,14 +197,14 @@ class my_stellar_core(stellar_engine):
         for scale in np.linspace(low,high,nr):
             attributes[Q] = scale*self.given_initial_params[Q]
             solutions.append(self.ODE_solver(RHS=self.get_RHS, variable_step=True))
-        
+
         attributes[Q] = self.given_initial_params[Q] # Set the self.parameter value back to original for fourther testing   
         if returning:
             return solutions
         else:
-            self.plot_set_of_solutions(solutions,filename='plot_experiment_change_'+Q,multible_parameters=Q)
+            self.plot_set_of_solutions(solutions[0],filename='plot_experiment_change_'+Q,multible_parameters=Q)
 
-    def find_my_star(self,returning=False,tlow=0.2,thigh=0.5,tnr=10,rlow=0.2,rhigh=0.9,rnr=10,rholow=0.2,rhohigh=1.5,rhonr=10):
+    def find_my_star(self,returning=False,use_goals=True,tlow=0.2,thigh=0.5,tnr=1,rlow=0.2,rhigh=0.9,rnr=1,rholow=0.2,rhohigh=1.5,rhonr=1):
         """
         Looping over different temperatures and radii, using experiment_multiple_solutions() to vary rho and return the 
         solutions.
@@ -201,16 +214,6 @@ class my_stellar_core(stellar_engine):
 
         @ returning - defaults to False, if True the good initial parameters are returned
         """
-
-        def is_result_good(solution):
-            """ quick function for testing if goals have been reached """
-            r,L,T,P,rho,eps,M = solution
-            values_approx_zero = False
-            index_r0_goal_2 = np.argmin(np.abs(r-r[0]*0.1)) # index for where the radius is at 10%
-            if r[-1]/r[0] <= 0.05 and L[-1]/L[0] <= 0.05 and M[-1]/M[0] <= 0.05 and L[index_r0_goal_2]<0.995*L[0]:
-                values_approx_zero = True
-            return values_approx_zero, r[0], T[0], rho[0]
-
         g_i_p = self.given_initial_params
         good_initial_parameters = []
         for scale_T in np.linspace(tlow,thigh,tnr):    # Varying initial temperature
@@ -224,11 +227,12 @@ class my_stellar_core(stellar_engine):
                 solutions = self.experiment_multiple_solutions('rho',low=rholow,high=rhohigh,nr=rhonr,returning=True)
                 
                 solution_has_good_results = False   # Flow parameter, trigger plotting of a set of good solutions
-                for one_solution in solutions:  # looping over the different sets of solutions stored in solutions
-                    result_is_good,initial_r,initial_T,initial_rho = is_result_good(one_solution)    # Testing the solution
-                    if result_is_good:  # If parameters are within 5% of initial value at the end and goal 2 is reached
-                        good_initial_parameters.append([initial_r,initial_T,initial_rho])   # store the good initial parameter values
-                        solution_has_good_results = True
+                if use_goals:
+                    for one_solution in solutions:  # looping over the different sets of solutions stored in solutions
+                        result_is_good,initial_r,initial_T,initial_rho = self.is_result_good(one_solution)    # Testing the solution
+                        if result_is_good:  # If parameters are within 5% of initial value at the end and goal 2 is reached
+                            good_initial_parameters.append([initial_r,initial_T,initial_rho])   # store the good initial parameter values
+                            solution_has_good_results = True
 
                 if solution_has_good_results and returning==False: # If solutions has a good solution and not used to return, plot it!
                     self.plot_set_of_solutions(solutions,multible_parameters='rho0',filename='plot_'+string.replace(', ','_'),title_string='using '+string)
@@ -240,9 +244,10 @@ class my_stellar_core(stellar_engine):
         self.R0 = g_i_p['R0']
         self.rho0 = g_i_p['rho0']
 
-        # Saving the sets of good parameters to file
-        good_initial_parameters = np.asarray(good_initial_parameters)
-        np.savetxt('good_initial_parameters.txt',good_initial_parameters,header='{:^24s}|{:^24s}|{:^24s}'.format('R0','T0','rho0')) 
+        if use_goals:
+            # Saving the sets of good parameters to file
+            good_initial_parameters = np.asarray(good_initial_parameters)
+            np.savetxt('good_initial_parameters.txt',good_initial_parameters,header='{:^24s}|{:^24s}|{:^24s}'.format('R0','T0','rho0')) 
 
         if returning:
             return good_initial_parameters
@@ -282,6 +287,18 @@ class my_stellar_core(stellar_engine):
 
     # --- Convenient functions, plotters and getters ---- #
     # --------------------------------------------------- #
+    def is_result_good(self,solution,inODE=False,final=False):
+        """ quick function for testing if goals have been reached """
+        r,L,T,P,rho,eps,M = solution
+        values_approx_zero = False
+        index_r0_goal_2 = np.argmin(np.abs(r-r[0]*0.1)) # index for where the radius is at 10%
+        if r[-1]/r[0] <= 0.05 and L[-1]/L[0] <= 0.05 and M[-1]/M[0] <= 0.05 and L[index_r0_goal_2]<0.995*L[0]:
+            values_approx_zero = True
+        if inODE:
+            pass
+        else:
+            return values_approx_zero, r[0], T[0], rho[0]
+
     def get_RHS(self,M,diff_params,eq_params):
         """ Defines the right-hand-side of differential equations """
         # print('RHS in p1')
@@ -447,7 +464,7 @@ class my_stellar_core(stellar_engine):
         fig.tight_layout(rect=[0, 0.06, 1, 0.97],h_pad=0)
 
         if filename != 0:
-            plt.savefig('./plots/'+filename+'.pdf')
+            plt.savefig('./../plots/'+filename+'.pdf')
         if show:
             plt.show()
 
@@ -566,7 +583,7 @@ class my_stellar_core(stellar_engine):
 
         fig.suptitle('Sanity check plot from app. D',size=30)
         fig.tight_layout(h_pad = 0.5,rect=[0, 0.03, 1, 0.95])
-        fig.savefig('./plots/plot_sanity.pdf')
+        fig.savefig('../plots/plot_sanity.pdf')
         plt.show()
 
     def opacity_sanity(self):

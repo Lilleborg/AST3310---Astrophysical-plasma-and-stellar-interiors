@@ -1,7 +1,7 @@
 ## MACOS stuff
 .DS_Store
 
-## Folders with much data
+## Plots
 plot_*.pdf
 
 
@@ -65,10 +65,5 @@ docs/_build/
 # PyBuilder
 target/
 
-Project_2/TeX/
-
 Project_2/scoresheet\.pdf
 
-Project_2/datafiles/
-
-Project_2/plots/

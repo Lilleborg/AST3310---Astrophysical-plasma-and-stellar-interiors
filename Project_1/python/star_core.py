@@ -131,7 +131,7 @@ class my_stellar_core(stellar_engine):
                 # If the fractional change in any one variable is higher than the tolerance adjust dm
                 if np.any(dV_V>p):
                     dm = -np.min(np.abs(p*current_last_values/d_params))
-                    if np.abs(dm)<1e15: # If the step size becomes too small break iterations
+                    if np.abs(dm)<1e12: # If the step size becomes too small break iterations
                         low_dm = True
                         break           # This takes care of too asymptotal behavior and stops the loop
 
@@ -146,11 +146,12 @@ class my_stellar_core(stellar_engine):
             epsilon.append(self.engine(rho[-1],T[-1]))
             M.append(M[-1] + dm)
 
-            # Check if project goals are vialated
+            # Check if project goals are vialated if goal_testing is true
             if goal_testing:
                 self.is_result_good(diff_params+eq_params+[M],inODE=True)
                 if self.break_goals:
-                    break
+                    self.break_goals = False
+                    return np.nan
 
             # Check for negative unphysical values or if all the derivatives are approx zero:
             current_last_values = np.asarray([item[-1] for item in diff_params+eq_params+[M]])
@@ -168,6 +169,13 @@ class my_stellar_core(stellar_engine):
                 print('Breakig due to too many iterations')
                 break
 
+        #Check if project goals are vialated if goal_testing is true
+        if goal_testing:
+            self.is_result_good(diff_params+eq_params+[M],inODE=True,final=True)
+            if self.break_goals:
+                self.break_goals = False  
+                return np.nan
+
         if not unphysical:
             if not low_dm:
                 # If not broken by to low dm, Calling RHS again
@@ -182,7 +190,7 @@ class my_stellar_core(stellar_engine):
 
         return list_with_arrays   # Order: r,L,T,P,rho,epsilon,M
 
-    def experiment_multiple_solutions(self,varying_parameter,low=0.5,high=1.5,nr=6,returning=False):
+    def experiment_multiple_solutions(self,varying_parameter,low=0.5,high=1.5,nr=6,returning=False,usegoals=False):
         """
         Solves the system multiple times while varying one parameter
         @ varying_parameter - string for witch parameter to change; one of [R,T,rho]
@@ -196,7 +204,9 @@ class my_stellar_core(stellar_engine):
         # Vary the given parameter of the original initial value in this loop
         for scale in np.linspace(low,high,nr):
             attributes[Q] = scale*self.given_initial_params[Q]
-            solutions.append(self.ODE_solver(RHS=self.get_RHS, variable_step=True))
+            sol = self.ODE_solver(RHS=self.get_RHS,variable_step=True,goal_testing=usegoals)
+            if not np.all(np.isnan(sol[0])):
+                solutions.append(sol)
 
         attributes[Q] = self.given_initial_params[Q] # Set the self.parameter value back to original for fourther testing   
         if returning:
@@ -290,6 +300,7 @@ class my_stellar_core(stellar_engine):
     def is_result_good(self,solution,inODE=False,final=False):
         """ quick function for testing if goals have been reached """
         r,L,T,P,rho,eps,M = solution
+        r,L,M = np.array(r),np.array(L),np.array(M)
         values_approx_zero = False
         index_r0_goal_2 = np.argmin(np.abs(r-r[0]*0.1)) # index for where the radius is at 10%
         if r[-1]/r[0] <= 0.05 and L[-1]/L[0] <= 0.05 and M[-1]/M[0] <= 0.05 and L[index_r0_goal_2]<0.995*L[0]:

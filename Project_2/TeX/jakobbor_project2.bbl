@@ -1,0 +1,14 @@
+\begin{thebibliography}{}
+
+\bibitem[\protect\astroncite{Borg}{2019}]{Project1}
+Borg, J.\leavevmode\nopagebreak\newline 2019.
+\newblock Modeling a stellar core.
+\newblock Unpublished, Project 1 paper.
+
+\bibitem[\protect\astroncite{Ryan and Norton}{2010}]{Actual_sun}
+Ryan, S.~G. and A.~J. Norton\leavevmode\nopagebreak\newline 2010.
+\newblock {\em Stellar Evolution and Nucleosynthesis}.
+\newblock Cambridge University Press.
+\newblock Additional resources at: \\www.cambridge.org/9780521132203.
+
+\end{thebibliography}

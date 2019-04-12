@@ -1,0 +1,429 @@
+\documentclass[11pt,a4paper,twocolumn,titlepage]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+
+%%%%%%%%%%% Own packages
+\usepackage[a4paper, margin=1in]{geometry}
+\usepackage{multicol}
+\usepackage{lipsum}
+% Spacing
+\linespread{0.9}
+%\renewcommand\floatpagefraction{.9}
+\renewcommand\dblfloatpagefraction{.99} % for two column documents
+%\renewcommand\topfraction{.9}
+\renewcommand\dbltopfraction{.9} % for two column documents
+\renewcommand\bottomfraction{.9}
+\renewcommand\textfraction{.9}
+\addtolength{\dbltextfloatsep}{-0.2in}
+\setcounter{totalnumber}{50}
+\setcounter{topnumber}{50}
+\setcounter{bottomnumber}{50}
+
+% Header/footer
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\renewcommand{\headrulewidth}{0pt}
+
+% Maths
+\usepackage{physics}
+\usepackage{cancel}
+\usepackage{amstext,amsbsy,amssymb}
+\usepackage{times} 
+\usepackage{siunitx}
+
+%% Graphics
+\usepackage{caption}
+\captionsetup{margin=15pt,font=small,labelfont=bf}
+\usepackage{graphicx}% Include figure files
+%\usepackage{afterpage}    % control page numbering on page with floats
+\usepackage{floatpag} % float page package
+\usepackage{rotating}
+\usepackage{float}
+
+% Listsings and items
+\usepackage{natbib}
+\bibliographystyle{humannat}
+\usepackage[shortlabels]{enumitem}
+%\setenumerate{wide,labelwidth=!, labelindent=2pt}
+\usepackage{varioref}
+\usepackage{hyperref}
+\usepackage{cleveref}
+
+%%%%%%%%%%%% New commands
+\renewcommand{\thefootnote}{\alph{footnote}}
+
+%% Quic-half
+\newcommand{\half}
+{
+\frac{1}{2}
+}
+%% quad while
+\newcommand{\qqwhile}
+{
+\qq{while}
+}
+%% quad where
+\newcommand{\qqwhere}
+{
+\qq{where}
+}
+
+%% Different nablas
+\newcommand{\nablastb}
+{
+\nabla_{\text{stable}}
+}
+\newcommand{\nablaad}
+{
+\nabla_{\text{ad}}
+}
+\newcommand{\nablastar}
+{
+\nabla^\star
+}
+\newcommand{\nablap}
+{
+\nabla_{p}
+}
+
+\title{AST3310 - Modelling a Star\\ 
+\vspace{15mm}Project 2}
+\author{Jakob Borg}
+%%%%%%%
+
+\begin{document}
+%%%%%%%
+\maketitle
+
+%%%%%%%
+%     INTRODUCTION
+\section{Introduction}\label{sec:Intro}
+%\begin{}
+%%%%%%%
+This project is built upon the work we did in term project 1 from app. D in the compendium, where we modeled the core of the star, with only radiative heat transport. In this project we are extending the model to the hole star, and include convective heat transport in addition to the radiative.
+
+\subsection{Assumptions}\label{subsec:Intro/Assumptions}
+In this project we are extending the assumptions from the Stellar Core project, and so all the same assumptions apply. In addition, we assume all heat is transported through radiation and convection only. For simplicity, we will model the heat transport as either fully convective, or fully radiative, in a specific region of the star. This is not perfectly physical, but for all intents and purposes a good approximation. In the calculations we will force this by setting the convective flux equal to zero in the regions which we define as radiative.
+
+%%%%%%%%
+% Note on project 1
+\subsection{Note; Project 1 - The Stellar Core} \label{subsec:Intro/project1}
+For most of the discussion regarding the system of equations we will explore here I will refer to the paper from project 1 \citep{Project1}. In this paper I will mainly focus on the new extensions to the model, and discuss the new implications and results. For the most part we tried to build upon the already existing methods and structure in the code from project 1. Different parts of the code may be run by passing a command line argument to the terminal. Through the paper footnotes with the proper commands for running each part will be included. These commands must be run in the terminal like \textit{my\_star.py command}.
+%\end{}
+%%%%%%%
+%     GOVERNING EQUATIONS
+\section{The Governing Equations}\label{sec:Governing_equations}
+%\begin{}
+\subsection{The System of Differential Equations from Project 1}\label{subsec:Governing/Project1_System}
+The system we solved in project 1 is described by the set coupled differential equations
+\begin{align}
+\pdv{r}{m} &= \frac{1}{4\pi r^2 \rho} \label{eq:dr/dm}
+\\
+\pdv{P}{m} &= -\frac{Gm}{4\pi r^4} \label{eq:dP/dm} %\qc P_0 = P_G+P_{rad}
+\\
+\pdv{L}{m} &= \varepsilon    \label{eq:dL/dm}
+\\
+\pdv{T}{m} &= -\frac{3\kappa L}{256\pi^2\sigma r^4T^3}. \label{eq:dT/dm}
+\end{align}
+These are the base equations that we build upon further in this project, and are explained in detailed in \cite{Project1} along with the definitions of the different quantities involved. The extension is described further in the following \cref{subsec:Governing/Extending_project}.
+
+\subsection{Extending the Stellar Core Model}\label{subsec:Governing/Extending_project}
+The only extension we need for the governing equations are to change the way we calculate the temperature gradient \cref{eq:dT/dm}, but this is not trivial. The temperature gradient is different in the radiative and convective regions of the star. In our calculations we need some criteria for when the star is considered convectively unstable (which means heat \textit{is} transported by convection), and use two different expressions for the temperature gradient in the cases where we have convection and radiation. 
+
+\subsubsection{Radiative and Convective Flux}\label{subsubsec:Governing/Rad_conv_flux}
+We need some quantitative description of the energy transportation throughout the star in order to describe the convective and radiative regions. We know the total energy flux of the star under our assumptions is the sum of radiative and convective flux, which is found from the definition as the total luminosity of the star divided by the surface-area
+\begin{equation}
+F_\text{tot} = F_C + F_R = \frac{L}{2\pi r^2}.
+%\frac{16\sigma T^4}{3\kappa\rho H_P}\nabla_{\text{stable}}
+\label{eq:Total_flux_of_L}
+\end{equation}
+%The different flux' will be elaborated and used further in the following \cref{subsubsec:Governing/General_Temperature_gradients}.
+We also have from project 1 that in the case where we have no convection, all energy is transported by radiation, and we can express the radiative flux as
+\begin{equation}
+F_R = \frac{L}{2\pi r^2}.    \label{eq:Only_radiative_flux_of_L}
+\end{equation}
+
+\subsubsection{Finding The Temperature Gradient}\label{subsubsec:Governing/Finding_Temperature_gradients}
+Throughout this project we will use the notation
+\begin{equation}
+\nabla = \pdv{\ln T}{\ln P} = \frac{P}{T}\pdv{T}{P}= -\frac{H_P}{T}\pdv{T}{r} \label{eq:Def_nabla}
+\end{equation}
+for four different types of temperature gradients to describe the star. Here $T$ is the temperature and $P$ is pressure, $H_P$ is the so called pressure scale height which is found as 
+\begin{equation}
+H_P = \frac{P}{g\rho} \label{eq:Pressure_scale_height}
+\end{equation}
+where $g$ is the gravitational acceleration and $\rho$ is the specific density, all at a specified mass shell (that is at a specified radius) of the star.
+
+\paragraph{The adiabatic} temperature gradient is a theoretical quantity and is the simplest form of gradient, defined in the compendium as
+\begin{equation}
+\nabla_{ad} = \frac{P\delta}{T\rho c_p} \label{eq:Def_nabla_ad}
+\end{equation}
+which is the temperature gradient of a thought parcel moving through the star adiabatically, so no energy is interchanged between the parcel and the surroundings. $c_p$ is the specific heat capacity at constant pressure, found as
+\begin{equation}
+c_p = \frac{5k_B}{2\mu m_u}
+\end{equation}
+where $\mu$ is the mean molecular weight \citep{Project1}, $k_B$ is Boltzmann's constant and $m_u$ is the atomic mass unit. $\delta$ is defined as
+\begin{equation}
+\delta = -\qty(\pdv{\ln\rho}{\ln T})_P = \frac{T}{V}\qty(\pdv{V}{T})_P = 1
+\end{equation}
+which is equal one for an ideal gas. Inserting for the heat capacity we can further rewrite \cref{eq:Def_nabla_ad}, using the ideal gas equation of state for the pressure
+\begin{align}
+\qq*{ideal gas} P &= \frac{k_B}{\mu m_u}\rho T \notag
+\\
+\Rightarrow \nablaad &= \frac{k_B\rho T}{\mu m_u T \rho c_p} = \frac{2}{5} \label{eq:Nabla_ad_constant}
+\end{align}
+
+\paragraph{The stable} temperature gradient is the physical temperature gradient in regions where the star is convectively stable (heat is \textit{not} transported by convection), and so is the temperature gradient of the star where all heat transportation is done radiatively. To express this gradient we use the relation from the compendium
+\begin{equation}
+F_C + F_R = \frac{16\sigma T^4}{3\kappa\rho H_P}\nablastb. \label{eq:Nabla_stb_compendium}
+\end{equation}
+We can therefore use \cref{eq:Total_flux_of_L} to find
+\begin{align}
+\nablastb &= \frac{L}{2\pi r^2}\frac{3\kappa\rho H_P}{16\sigma T^4}. \label{eq:Nabla_stb}
+\end{align}
+
+\paragraph{The convective instability criterion} is expressed in the compendium as
+\begin{equation*}
+\pdv{T}{r} < \qty(\pdv{T}{r})_\text{AD} + \frac{T}{\mu}\cancel{\pdv{\mu}{r}}
+\end{equation*}
+where we assume the mean molecular weight $\mu$ to be constant. The criterion is in other words that the temperature gradient must be lower than the theoretical gradient in the adiabatic situation. This may now be expressed using the temperature gradients we have defined as
+\begin{equation}
+\nablastb > \nablaad \label{eq:Convective_criterion}
+\end{equation}
+which is the expression used in the calculations. When this criterion \textit{is} fulfilled we say that the heat transportation is convective.
+
+\paragraph{A mathematical middle step} is required to continue finding the actual physical temperature gradient of our model. To express this gradient we need some additional separate explicit expressions for the convective and radiative flux' found in the lectures and compendium. We have
+\begin{gather}
+F_C = \rho c_p T \sqrt{g\delta}H_P^{-3/2} \qty(\frac{l_m}{2})^2\qty(\nablastar-\nablap)^{3/2} \label{eq:Convective_flux}
+\\
+F_R = \frac{16\sigma T^4}{3\kappa\rho H_P}\nablastar \label{eq:Radiative_flux_reality}
+\end{gather}
+where $\nablap$ is the temperature gradient inside a parcel, and $\nablastar$ is the actual physical temperature gradient of the star, which is our target. $l_m$ is the so called mixing length and is found as
+\begin{equation}
+l_m = \alpha H_P \label{eq:Mixing_length}
+\end{equation}
+where $\alpha$ is a parameter in the range $[0.5,\, 2]$. We can now use these expressions together with \cref{eq:Nabla_stb_compendium} to isolate the $\qty(\nablastar-\nablap)^{1/2}$ which we will rename to $\xi$. Here we also use that $\delta = 1$.
+\begin{gather}
+\rho c_p T \sqrt{g}H_P^{-3/2} \qty(\frac{l_m}{2})^2 \xi^3= \frac{16\sigma T^4}{3\kappa\rho H_P}\qty(\nablastb-\nablastar) \notag
+\\
+\xi^3 = \frac{16\sigma T^4}{3\kappa\rho H_P}\frac{H_P^{3/2}}{\rho c_p T \sqrt{g}\qty(\frac{l_m}{2})^2} \qty(\nablastb-\nablastar) \notag
+\\
+= \frac{64 \sigma T^3}{3\kappa\rho^2 c_p}\sqrt{\frac{H_P}{g}}\frac{1}{l_m^2}\qty(\nablastb-\nablastar) \notag
+\\
+\qq*{giving:\footnotemark} \xi^3= \qty(\nablastar - \nablap)^{3/2} = \frac{U}{l_m^2}\qty(\nablastb-\nablastar) \label{eq:Xi_exe_11}
+\end{gather}
+\footnotetext{Solution exe 5.11.}
+where 
+\begin{equation}
+U = \frac{64 \sigma T^3}{3\kappa\rho^2 c_p}\sqrt{\frac{H_P}{g}}. \label{eq:U}
+\end{equation}
+
+To continue we use even more expressions from the compendium relating the different quantities we need:
+\begin{align}
+\qty(\nablap-\nablaad) &= \qty(\nablastar-\nablaad) - \qty(\nablastar-\nablap) \label{eq:exe_12}
+\\
+\qty(\nablap-\nablaad) &= \frac{32\sigma T^3}{3\kappa\rho^2 c_p} \frac{S}{vQd}\qty(\nablastar-\nablap) \label{eq:5.73}
+\end{align}
+where $\frac{S}{Qd}$ is a geometrical factor of the parcel and $v$ is it's velocity through the surroundings. We can find the factor by assuming a spherical parcel and the velocity is given as
+\begin{align*}
+v &= \sqrt{\frac{g\delta l_m^2}{4H_P}\qty(\nablastar-\nablap)}
+\\
+&= \frac{l_m}{2}\sqrt{\frac{g}{H_p}}\xi
+\\
+\frac{S}{Qd} &= \frac{4\pi r_p^2}{\pi r_p^2 2r_p} = \frac{2}{r_p} = \frac{4}{l_m}
+\end{align*}
+where we approximate the radius of the parcel as half the mixing length, $r_p = \frac{l_m}{2}$. Now, combining \cref{eq:exe_12,eq:5.73} and inserting for the velocity and geometric factor we can find a second order equation for $\xi$.
+\begin{align*}
+\qty(\nablap-\nablaad) &= \qty(\nablastar-\nablaad) - \xi^2
+\\
+= \frac{32\sigma T^3}{3\kappa\rho^2 c_p} \frac{S}{vQd}\xi^2 &= U\frac{S}{l_mQd}\xi
+\\
+\Rightarrow U\frac{S}{l_mQd}\xi &= \qty(\nablastar-\nablaad) - \xi^2
+\end{align*}
+Which gives the second order equation\footnote{Solution to exe 5.12.}
+\begin{equation}
+\xi^2 + \frac{US}{l_mQd}\xi - \qty(\nablastar-\nablaad) = 0
+\label{eq:Second_order_eq_xi}
+\end{equation}
+with the only physical solution\footnote{Choosing the positive version of the second order equation.}
+\begin{align*}
+\xi = -\frac{1}{2}\frac{US}{l_mQd} + \frac{1}{2}\sqrt{\qty(\frac{US}{l_mQd})^2 + 4\qty(\nablastar-\nablaad)}
+\end{align*}
+as $\xi$ has to be a real positive value. This is because we solve for $\xi$ \textit{when} the star is convectively \textit{unstable}, and the instability criterion may be written as ${\nablaad < \nablap < \nablastar < \nablastb}$, so ${\xi^2 = \nablastar -\nablap>0}$. We are not able to solve this equation yet, as we don't have $\nablastar$, but solving \cref{eq:Second_order_eq_xi} for $\nablastar$ we get
+\begin{equation}
+\nablastar = \xi^2 + \frac{US}{l_mQd}\xi + \nablaad. 
+\label{eq:Nablastar_of_xi}
+\end{equation}
+Inserting this into \cref{eq:Xi_exe_11} we finally find the third order polynomial\footnote{Solution to exe 5.13.}
+\begin{gather}
+\xi^3 = \frac{U}{l_m^2}\qty(\nablastb - \qty(\xi^2 + \frac{US}{l_mQd}\xi + \nablaad)) \notag
+\\
+\frac{l_m^2}{U}\xi^3 +\xi^2+\frac{US}{l_mQd}\xi + \qty(\nablaad-\nablastb) = 0  \label{eq:Xi_third_order}
+\end{gather}
+This third order polynomial is used in the calculations to find the helper-quantity $\xi$, which in turn can be used to find the convective flux $F_C$ from \cref{eq:Convective_flux}, where remember $\xi = \qty(\nablastar-\nablap)^{1/2}$.
+
+\paragraph{The actual} temperature gradient of the star may then be found by using \cref{eq:Radiative_flux_reality,eq:Total_flux_of_L} as
+\begin{align}
+F_C + \frac{16\sigma T^4}{3\kappa\rho H_P}\nablastar = \frac{L}{2\pi r^2} \notag
+\\
+\Rightarrow \nablastar = \frac{3\kappa \rho H_P}{16\sigma T^4}\qty(\frac{L}{2\pi r^2}-F_C) \label{eq:Nabla_star}
+\end{align}
+where we calculate the convective flux using \cref{eq:Convective_flux}. We see that this gradient reduces to the radiative gradient \cref{eq:Radiative_flux_reality}, as it should under our assumptions when there are no convection, as $\frac{L}{2\pi r^2}=F_R$ and we force $F_C = 0$. We also note that if there indeed are convection, this gradient is \textit{less} than for the radiative case, as $F_C > 0$.
+
+\paragraph{The parcel} temperature gradient may then also be calculated when we can find both $\xi$ and $\nablastar$, by
+\begin{equation*}
+\nablap = \nablastar - \xi^2. \label{eq:Nabla_parcel}
+\end{equation*}
+
+\subsubsection{The New Temperature Gradient}\label{subsubsec:Governing/The_new_dTdm}
+Using the mathematical framework described in \cref{subsubsec:Governing/Finding_Temperature_gradients} we now know how to express the temperature gradient in the radiative and convective regions.
+
+First, the radiative regions are easy, as we can simply reuse the expression from project 1, \cref{eq:dT/dm}, where the heat transportation is only radiative. As this already is implemented in project 1 we don't need a new temperature gradient for the radiative zones. But, as mentioned, the framework developed here reduces to the same temperature gradient as in project 1 when the convective flux is zero.
+
+In the convective regions however, we get a new gradient. By the general definition in \cref{eq:Def_nabla} we find
+\begin{align*}
+-\nabla = \frac{H_P}{T}\pdv{T}{r} = \frac{H_P}{T}\pdv{T}{m}\pdv{r}{m}.
+\end{align*}
+Using \cref{eq:Nabla_star} to find $\nablastar$, we find the temperature gradient of the star in the convective regions as
+\begin{align}
+\pdv{T}{m} &= -\nablastar \frac{T}{H_P}\pdv{r}{m} \label{eq:dTdm_convective}
+\end{align}
+where we recognize the last term as the first differential equation from the original set of equations form project 1 \cref{eq:dr/dm}.
+
+\subsection{Given Initial Parameters}\label{subsec:Governing/Initial_parameters}
+Just like in project 1, we are given a set of initial parameters. Here we will only discuss the new changes. As we now simulate the hole star our initial parameters are
+\begin{gather*}
+\qq*{Fixed:} L_0 = L_\odot  \qc  M_0 = M_\odot
+\\
+\qq*{Free:} \begin{cases}
+ R_0 = R_\odot \qc  T_0 = \SI{5770}{\kelvin} \\
+\rho_0 = \num{1.42e-7}\cdot\bar{\rho}_\odot  \end{cases}
+\end{gather*}
+where $\bar{\rho}_\odot$ is the average density of the sun. As in project 1, whenever the given initial parameters are mentioned it refers to these original values.
+
+\subsection{Goals for the Project}\label{subsec:Governing/Goals}
+In this project we extend the goals from project 1 with two more criteria to get a physical solution. We want a star that has
+\begin{enumerate}[3.]
+\item a continuous  convection zone from the surface with width atleast equal \SI{15}{\percent} of $R_0$. We settle with a model with a \textit{small} radiative zone at the edge. Also a second convective zone closer to the core is acceptable, if the convective flux here are small relative to the surface.
+
+\item energy contribution from each of the three PP-chains should relate to the temperature as we expect. That is for low temperatures PPI should dominate, while PPII and PPIII dominating at higher temperatures.
+\end{enumerate}
+%\end{}
+%%%%%%%%%
+% METHOD DESCRIPTION
+\section{Method Description}\label{sec:Method}
+%\begin{}
+\subsection{Solving the Equations}\label{subsec:Method/Solving_equations}
+As the new mathematical framework used in this project is quite involved, we will again outline the order of operations
+\begin{enumerate}
+\item $\nablaad$ and $\nablastb$ is found using \cref{eq:Nabla_ad_constant,eq:Nabla_stb}
+
+\item $\xi$ is found using \cref{eq:Xi_third_order}
+
+\item $\nablastar$ is found using \cref{eq:Nabla_star}
+
+\item $\nablap$ is found using \cref{eq:Nabla_parcel}
+\end{enumerate}
+
+For the full method for solving the system we refer to the method description in \cite{Project1} where the algorithm is covered in detail, and some general behavior of the equations are discussed. Here only the new additions to the system are elaborated.
+
+In each mass shell iteration in our Forward-Euler-scheme, when we find the right-hand-side of the system of differential equations, we need to check for convective instability. This determines which expression to be used for the temperature gradient in the current mass shell, either \cref{eq:dT/dm} or \cref{eq:dTdm_convective} for radiative and convective zones respectively. Again, this is criterion is formulated as we will have convection iff. $\nablastb>\nablaad$, otherwise radiation.
+
+\paragraph{Changes to previous code} is minimal, with slight structural changes. In short, the old code is now able to interpret different functions for calculating the right-hand-side of the differential system. Thus, all the new changes introduced in this project is wrapped around the solver from project 1\footnote{Some further explanation in the code. See \textit{get\_RHS()} and \textit{ODE\_solver} in \textit{my\_star.py}.}.
+
+\subsubsection{Benchmark the Code}\label{subsub:Method/Sanity}
+Before experimenting further we tested the code against benchmarks from the compendium, using initial conditions listed there\footnote{command: \textit{sanity}.}. These tests whether our implementation of all the new equations from \cref{sec:Governing_equations} are correct, by comparison with values given in the compendium. In addition, a cross section of the hole star and plots of the temperature gradients as a function of radius were compared. Within reasonable tolerances all the benchmarks passed.
+
+\subsection{Experimenting with Initial Parameters}\label{subsec:Method/Experimenting}
+Again, we refer to project 1 for a in depth discussion of the initial parameters to vary and the effects the changing parameters have on the core. To recap, we saw in project 1 that a core with lower initial parameters values than the Sun gave good results, and more importantly, changing the density seemed to have the most effect on the simulations. Here we focus on the effects on the convection zone(s) of the simulation, and try to achieve the addition goals from \cref{subsec:Governing/Goals} while still satisfying the goals from \cite{Project1}. The approach to the problem is the same. In the following, let $Q_0$ be the given initial value of parameter $Q$, while $Q0$ is the initial value actually used in the calculations which will be some scaling of $Q_0$. To analyze the results we look at the value of $\nablastb$ compared to $\nablaad$, as the convective instability criterion is expressed in terms of these (\cref{eq:Convective_criterion}). 
+
+%This further supports that the density is the main factor for convection, as we see from \cref{eq:Nabla_stb}
+
+%From what we learned in project 1 we expect experiments with initial radii and temperatures at or slightly below the given initial parameters to give good solutions, but we don't know the effects on the convection zone.
+\subsubsection{Wide outer Convection Zone}\label{subsubsec:Method/Wide_convection}
+To see the effects on the convection zone we vary the initial temperature and radii separately, while spanning a wide range of density values for each case. We use initial radii and temperatures in the range \numrange{0.6}{5} times the given parameters, and density in the range \numrange{1}{300}. The result is presented in \cref{fig:Experiment}\footnote{command: \textit{experiment}}, note that the graphs stopping prematurely are simulations forcefully stopped. Here we see that increasing the density is the main factor for wider a convection zone. The different radii also has a dramatic effect, but for increasing $R0$ we see it's harder for the simulation to reach the core. From the analysis we conclude that radii in \numrange{0.9}{1.5} times $R_0$ seems to give good results. Here we get a wide convection zone, while reaching all the way to the core. I addition we see that the initial density is too low; the outer convection zone is too narrow in addition to giving a small convection zone in the core. 
+
+Changing the temperature has little effect on the behavior near the surface. We see that for increasing $T0$, the width of the outer convection zone decreases. The effect of the different temperatures are more present near the core of the star. Here we see that for higher temperatures, we get more convection in the core. From the analysis we conclude the a temperature is not so important for convection near the surface, but important for the behavior in the core. To further discuss the effect of the changing temperature we have to look at the energy production from each PP-chain. This will be further explored for the final best model in \cref{sec:Conclusion}.
+
+By inspecting \cref{eq:Nabla_stb} we see that the main parameters affecting the gradient is indeed the density, radius and temperature. Immediately it would seem to be most affected by temperature, then radii and then density, but we know the quantities are heavily coupled, and so the situation is hard to predict. The high order of proportionality of $T$ and $r$, together with the dramatically different values near the surface and the core, explains why we need to vary the density in such a wide range for the effect to be visible. The given initial density is also a really low fraction of the average density of the Sun, so an increase in density makes sense for the model to behave more sun-like.
+
+\begin{figure*}[ht!]
+%\thisfloatpagestyle{empty}
+\centering
+\includegraphics[width=0.99\linewidth]{./../plots/{plot_nabla_vary_R}.pdf}
+\includegraphics[width=0.99\linewidth]{./../plots/{plot_nabla_vary_T}.pdf}
+\caption{Experimentation with initial radii,temperature and densities. $\nablastb$ are plotted for different densities and compared to $\nablaad$ which is marked by the dashed lines, for convection $\nablastb> \nablaad$. Here we can study the width of the convective zone at the surface and core.}
+\label{fig:Experiment}
+\end{figure*}
+
+\subsection{Finding Physical Stars}\label{subsec:Mehtod/Find_physical}
+Similarly to project 1, to find physical stars a combination of numerical brute force and manual searching applying what we learned from the experimentation. We want a star with no convection in the core, as this resembles the Sun \citep{Actual_sun} the most. In addition, with only one convection zone near the surface of the star, the model is essentially identical to project 1 below this region. Thus, we can apply what we learned from the physical solutions of the stellar core and leave the discussion of the behavior of the system for the inner layers as is in \cite{Project1}. 
+
+Like we did in project 1, we implemented a brute force method for solving the system while looping over each set of different initial parameters that can be combined with $5$ equally spaced values of temperature and radius and $20$ densities in the ranges
+\begin{align*}
+T0 &= [0.8,1.1] \times T_0
+\\
+R0 &= [0.8,1.1] \times R_0
+\\
+\rho 0 &= [5,300] \times \rho_0.
+\end{align*}
+To save computation time, the numerical test for checking if the goals are achieved is moved inside the integration loop. Here we test for two of our four goals, if the convective zone reaches atleast \SI{15}{\percent} into the radius of the star \textit{and} the goals from project 1 near the core. For all the solutions which satisfy the requirements the initial parameters used are saved to a text file\footnote{command: \textit{findstar}. Note this will take some time.}. Then, by using the good initial parameters found we made plots similar to the ones from the experimentation and manually searched\footnote{command: \textit{viewgood}.}. Here we look for solutions with no convection in the core, so $\nablastb < \nablaad$ all the way to the core after the initial convection zone. Using this method we are left with many sets of parameters which give good solutions. To avoid overflowing the paper with plots these figures are left out, as the compendium only ask us to present our best model. Again, we refer to project 1 for a more in depth discussion of the brute force method used and regarding the behavior of the main parameters.
+
+%\end{}
+%%%%%%%%
+\section{Conclusion and Final Result}\label{sec:Conclusion}
+%\begin{}
+Of all the found sets of good initial parameters some are probably more physical than others. In this project it's harder to find good ways to represent multiple solutions, as we are interested in a few more quantities. From the over large amount of good sets, we wanted initial temperature and radius to be as close to that of the Sun as possible. This makes the differences of our model to the reality easier to interpret. As our best model we choose initial parameters
+\begin{align*}
+T0 &= 0.95 T_0 & R0 &= 1.1 R_0 & \rho 0 &= 250 \rho_0
+\\
+&= 0.95  T_\odot & &= 1.1 R_\odot & &= \num{3.55e-5} \bar{\rho}_\odot.
+\end{align*}
+These parameters are really close to the actual parameters of the sun, except for the average density, which are two orders of magnitude higher. All the required plots are displayed in \cref{fig:Main_params,fig:Nablas,fig:PP_chains}\footnote{command: \textit{final} will reproduce these results, even if non of the other methods have been run.}. The solution behaves really nice, without too much asymptotic behavior in any of the main parameters. 
+
+We see that the pressure and density behave in a similar way, increasing rapidly in the beginning and at the end near the center of the core as expected.
+
+The temperature follows the same trend, but doesn't have the same rapid increase in the beginning, which is good as we expect the temperature to be exponentially increasing from the surface into the core. 
+
+The luminosity stays more or less constant until we reach the edge of the core, at \SI{21.4}{\percent} of initial radius. This is consistent with the Sun, which has a radiative core out to $\sim \SI{20}{\percent}$ of it's radius\citep{Actual_sun}. We also see that most of the energy production is even closer to the center of the core, where the luminosity drops to zero.
+
+The mass decreases more or less as expected, slow at first as the density is low, and then more rapidly when we approach the core. In the last part we see that the decrease is slower. If this is due to our simplified model, a bug or numerical errors is still unclear, but seems nonphysical as we expect the densest and heavies part of the star to be the center core. 
+
+From the cross section and fractions of convective and radiative flux we see that the star has an outer convective zone, reaching down to \SI{66.6}{\percent} of the initial radius. This is a bit deeper than the convective zone in the Sun, which starts at $\sim \SI{71}{\percent}$ of $R_\odot$. But as we have a \SI{10}{\percent} wider star with the same mass, this is not unexpected. As we saw from the experimentation, a wider star gives a slightly wider convection zone (along with higher density, which we also have). 
+
+When inspecting the fractions of flux' next to the temperature gradients we can more easily see the effects of the instability criterion. Before $\nablastb>\nablaad$ the convective flux is dominant, with the radiative flux being more and more present when approaching the end of the convective zone. After this point, all energy transportation is done radiatively. From the magnified area we can see that $\nablastar$ is \textit{just} slightly higher than $\nablaad$ all the time in the convective zone, with a small increase right at the surface. If this increase is physical or not is unclear, but seems to be a product of the model and numerical method (as a \textit{slight} radiative zone near the surface was acceptable in the goals from \cref{subsec:Governing/Goals}). Note, we model the star to be either fully convective or fully radiative in a given region (as seen in the cross section), but this is not a perfect situation. In reality the two will mix a bit, especially near the borders between two zones. For our calculations we force the convective flux to be zero when the instability criterion don't hold and define the convective zone to be where the convective flux is nonzero, and so we get a discontinuity in the flux'.
+
+Lastly, the results in the relative energy production is just as expected, with PP-1 dominating at low temperatures, then PP-2 at higher temperatures and lastly PP-3 at the highest temperatures. We emphasize that the energy productions are \textit{relative}. Note the $\varepsilon/\varepsilon_\text{max}$ overplotted, which indicate that as good as \textit{all} of the energy is produced in the core, where PP-2 and PP-1 are dominating. This further substantiates our discussion of the luminosity. In the magnified area we can take a closer look at what happens near the core. Here we see some unexpected behavior, as the PP-2 and PP-3 chains have a discontinuously symmetrical increase and decrease respectively. This seems to be due to a numerical error, or our simplified model. We know the PP-chains are heavily temperature dependent, with PP-3 even more so than PP-2. For higher temperatures PP-3 \textit{should} dominate, but we see that PP-2 takes over at the very end, even tho the temperature only increases.
+
+\begin{figure*}[ht!]
+\centering
+\includegraphics[width=0.99\linewidth]{./../plots/best/{plot_params_cross_best1.100R0_0.950T0_250.000rho0}.pdf}
+\captionof{figure}{Main parameters as a function of radius for the best model, as well as a full cross section. Blue vertical dashed lines indicate the border of the core, red indicate the start of outer convection zone. The colors in the cross section; red - convection outside core, yellow - radiation outside core, blue - radiation inside core, cyan (not showing) - convection inside core. }\label{fig:Main_params}
+\includegraphics[width=0.99\linewidth]{./../plots/best/{plot_nablas_best1.100R0_0.950T0_250.000rho0}.pdf}
+\captionof{figure}{Fractions of convective and radiative flux and temperature gradients as a function of radius. The third plot magnifying the effects in the outer convection zone. Blue vertical dashed lines indicate the border of the core, red indicate the start of outer convection zone.}\label{fig:Nablas}
+\end{figure*}
+\begin{figure*}[ht!]
+%\centering
+\includegraphics[width=0.99\linewidth]{./../plots/best/{plot_energy_best1.100R0_0.950T0_250.000rho0}.pdf}
+\caption{Fractions of energy production from each PP-chain, overplotted by the scaled total energy production, together with the temperature as a function of radius. The third plot magnifying the core. Blue vertical dashed lines indicate the border of the core, red indicate the start of outer convection zone.}\label{fig:PP_chains}
+\end{figure*}
+%\end{}
+
+\subsection{Problems and Difficulties}
+In this project we had some initial problems with fulfilling the sanity tests. After much (\textit{much}) debugging we finally realized that the problem was in the calculation of $\xi$ from \cref{eq:Xi_third_order}, where we simply wrote missed a single term in one of the coefficients in the third order polynomial. This caused a lot of frustration and delay, as we simply had written the coefficients in a way such that it was hard to compare it to the analytical expression. Due to this delay, we unfortunately had much less time to streamline the code and comment. Our goal was to reuse as much code as possible from the inherited previous project, but in the end we just hard-coded what we needed to present the final results as clear as possible.
+
+\paragraph{OBS} we did not have time to rewrite the code such that the reader may easily run each part on his/her own computer. The reason for this is that we structured the project into different folders on the computer running the simulations, to keep track of plots, data and other files. Because of this some of the methods mentioned in the footnotes may cause the program to crash as it tries to save or find files in directories which doesn't exists. This is unfortunate, and we apologies in advance, but the methods running the sanity checks and for producing the final star should work with commands \textit{sanity} and\textit{final} as mentioned.
+
+\subsection{Comments, Final Thoughts and Future Perspectives}\label{subsec:Conclusion/Comments}
+As we have seen our simulation is a pretty good model of a star, down to some inconsistencies especially near the core. We conclude these inconsistencies are a product of numerical instability and a simplified model. Most of the parameters and quantities needed for the calculations are heavily radius dependent, which causes numerical problems when the radius approaches zero. To simulate the star all the way from the surface to the core, where the quantities involved are so dramatically different, we should maybe do some rescaling of the equations for the system to behave smooth and physical throughout the star.
+
+In our model we have assumed that the hole star is governed by the equation of state of an ideal gas. This, as we know, is not a good approximation, especially near the core. Here the temperature, density and pressure is so large that the particles collide all the time, which by definition is opposite of an ideal gas were there are no collisions between particles.
+
+We hope our little comparison of the cross section to the actual Sun is sufficient, where we compared the width of the convective and radiative zones. Finding an \textit{actual} cross section of the Sun is impossible, as we can't observe this. We would only be able to compare to other computer simulations, and we did not have time to find others who had simulated the cross section with similar assumptions as we have made. But from what we have learned in the lectures, these projects and prior knowledge we can point at some differences between our model and how the Sun \textit{actually} looks like. In addition to the ideal gas assumption, we know that stars are not spherical symmetric. Our model is one-dimensional, where in reality we need three dimension to fully describe the star. We assume this will have a dramatic effect on how the convective heat transportation is done.
+
+In the future it would be interesting to look at ways of creating better models, where we fuse together different regions with costume made assumptions governing the equations.
+%\lipsum{0,15}
+
+\bibliography{ref}
+\end{document}

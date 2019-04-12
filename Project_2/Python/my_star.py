@@ -36,7 +36,7 @@ class my_star(my_stellar_core):
         self.datafiles_path = '../datafiles/'
         self.debug = False
 
-    def ODE_solver(self,RHS=0,input_dm = -1e-20*Sun.M,variable_step=True,goal_testing_=False):
+    def ODE_solver(self,RHS=0,input_dm = -1e-20*Sun.M,variable_step=True,goal_testing=False):
         """
         A wrapper for solving the new system of ODE using the framework in p1
         @ RHS - A function returning the right-hand-side of the diff. system.
@@ -46,7 +46,7 @@ class my_star(my_stellar_core):
         Stores values for tracked quantities for each mass shell (done inside get_RHS)
         returns set of solutions of each parameter
         """
-        self.R_convective_end = self.R0*0.85
+        self.R_convective_end = self.R0*0.90
         if RHS==0:
             RHS = self.get_RHS
         # Create list to store tracked values at each mass shell
@@ -63,33 +63,36 @@ class my_star(my_stellar_core):
         # the convective stability check lies inside RHS which is call at each
         # mass shell!
         #print('for super ode',len(project2_values[2]),len(self.nabla_stable_list))
-        solutions = super().ODE_solver(RHS,input_dm,variable_step,goal_testing=goal_testing_) 
+        solutions = super().ODE_solver(RHS,input_dm,variable_step,goal_testing=goal_testing) 
         #print('etter super ode',len(project2_values[2]),len(self.nabla_stable_list))
         return solutions,project2_values
 
-    def experiment_deep_convection(self):
+    def experiment_deep_convection(self,use_goals=False,tlim=[0.7,5,6],rlim=[0.6,5,6],\
+        rholim=[1,300,4],filename='plot_nabla_vary_',title='Experimenting with different intial '):
         """
         """
         g_i_p = self.given_initial_params
-
-        tlim = [0.7,5,6]
-        rlim = [0.6,5,6]
-        
         hole_solutions = []
         for scale_R in np.linspace(*rlim):
             self.R0 = scale_R*g_i_p['R0']
-            hole_solutions.append(super().experiment_multiple_solutions('rho',\
-                returning=True,low=1,high=300,nr=4))
-        self.plot_nablas_set_of_solutions(hole_solutions,'R','plot_nabla_vary_R')
+            hole_solutions.append(super().experiment_multiple_solutions('rho',returning=True,\
+                low=rholim[0],high=rholim[1],nr=rholim[2],usegoals=use_goals))
+        self.plot_nablas_set_of_solutions(hole_solutions,exp_param='R',\
+            title=title+'radii',filename=filename+'R')
         self.R0 = g_i_p['R0']
 
         hole_solutions = []
-        for scale_T in np.linspace(*tlim):
+        for scale_T in np.linspace(*rlim):
             self.T0 = scale_T*g_i_p['T0']
-            hole_solutions.append(super().experiment_multiple_solutions('rho',\
-                returning=True,low=1,high=300,nr=4))
-        self.plot_nablas_set_of_solutions(hole_solutions,'T','plot_nabla_vary_T')
+            hole_solutions.append(super().experiment_multiple_solutions('rho',returning=True,\
+                low=rholim[0],high=rholim[1],nr=rholim[2],usegoals=use_goals))
+        self.plot_nablas_set_of_solutions(hole_solutions,exp_param='T',\
+            title=title+'temperatures',filename=filename+'T')
         self.T0 = g_i_p['T0']
+
+    def find_my_star(self,tlim=[0.8,1.2,6],rlim=[0.8,1.2,6],rholim=[5,50,10]):
+        self.experiment_deep_convection(use_goals=True,tlim=tlim,rlim=rlim,rholim=rholim,\
+            filename='good_star',title='test')
 
     # ------------- Getters/setters ------------- #
     # ------------------------------------------- #
@@ -216,12 +219,20 @@ class my_star(my_stellar_core):
     # ----------------------------------------- #
     def is_result_good(self,solution,inODE=False,final=False):
         if not final:
-            if self.R > self.R_convective_end:
+            if self.R > self.R_convective_end and self.R < 0.99*self.R0:
                 is_convective = self.Fc_list[-1]> 0
                 if not is_convective:
-                    print('Initial convective zone not deep enough')
+                    print(40*'-')
                     print('Breaking')
+                    print('Initial convective zone not deep enough')
                     self.break_goals = True
+        else:
+            values_approx_zero=super().is_result_good(solution,final=True)[0]
+            if not values_approx_zero:
+                print(41*'-')
+                print('Breaking iterations as goals near core are vialated')
+                print(41*'-')
+                self.break_goals = True
 
     def append_tracked_quantities(self,nabla_stable,nabla_star):
         """ Appends values at current shell for quantities tracked in project2 """
@@ -248,7 +259,7 @@ class my_star(my_stellar_core):
 
     def load_solutions_from_file(self,filename):
         solutions = np.load(self.datafiles_path+filename)
-        r = solutions['arr_0']
+        R = solutions['arr_0']
         L = solutions['arr_1']
         T = solutions['arr_2']
         P = solutions['arr_3']
@@ -258,31 +269,33 @@ class my_star(my_stellar_core):
         Fc = solutions['arr_7']
         Fr = solutions['arr_8']
         nabla_stable = solutions['arr_9']
-        return [r,L,T,P,rho,eps,M],[Fc]
+        return [R,L,T,P,rho,eps,M],[Fc]
 
     # ---------------- Plotters --------------- #
     # ----------------------------------------- #
-    def plot_nablas_set_of_solutions(self,set_of_solutions,title_parameter,filename=0):
+    def plot_nablas_set_of_solutions(self,set_of_solutions,title=0,exp_param=0,filename=0):
         g_i_p = self.given_initial_params   # Used for scaling in labels
         mpl.rcParams['figure.constrained_layout.use']= False
         fig, ax = plt.subplots(2,3,sharex='col',sharey='row',squeeze=False)
         i = 0
+        n = 0    # number of solutions
+        super_add = ''   # Dummy variable
         for j,different_sets in enumerate(set_of_solutions):   
             for k,solution in enumerate(different_sets):
+                n += 1
                 if j > 2:
                     i = 1
                     j -= 3
-
                 R,_,T,_,rho,_,M = solution[0]
                 s_R,_,T,_,s_rho,_,s_M = self.get_scale_parameter_lists(solution[0])
                 nabla_stb = solution[1][2]
 
                 ax[i,j].semilogy(s_R,nabla_stb,label=r'$\rho0 = {:.2f}\rho_0$'.format(rho[0]/g_i_p['rho0']))
                 
-                if title_parameter == 'R':
+                if exp_param == 'R':
                     ax[i,j].set_title(r'$R0 = %.2f R_0$'%(R[0]/g_i_p['R0']))
                     super_add = 'radii'
-                else:
+                if exp_param == 'T':
                     ax[i,j].set_title(r'$T0 = %.2f T_0$'%(T[0]/g_i_p['T0']))
                     super_add = 'temperatures'
                 if k == 0:
@@ -292,13 +305,14 @@ class my_star(my_stellar_core):
                         ax[1,A].set_xlabel(r'$R/R_0$')
                         if A < 2:
                             ax[A,0].set_ylabel(r'$\nabla_{\text{stable}}$')
-
-        handles,labels = ax[0,0].get_legend_handles_labels()    
-        fig.legend(handles,labels,loc='upper center',bbox_to_anchor=(0.5,0.1),ncol=len(solution))#[r'$\nabla_{\text{stable}}$',r'$\nabla_{\text{stable}}$'])    
-        fig.suptitle('Experimenting with different intial '+super_add)
-        fig.tight_layout(rect=[0, 0.06, 1, 0.95],h_pad=1)
-        if filename != 0:
-            fig.savefig('./../plots/'+filename + '.pdf')
+        if n != 0:
+            handles,labels = ax[0,0].get_legend_handles_labels()    
+            fig.legend(handles,labels,loc='upper center',bbox_to_anchor=(0.5,0.1),ncol=n)#[r'$\nabla_{\text{stable}}$',r'$\nabla_{\text{stable}}$'])    
+            fig.suptitle(str(title))
+            fig.tight_layout(rect=[0, 0.06, 1, 0.95],h_pad=1)
+            if filename != 0:
+                fig.savefig('./../plots/'+filename + '.pdf')
+                print('./../plots/'+filename + '.pdf saved.')
 
     def plot_cross_section(self,solutions,show_every=25,title=0,filename=0,scale_with_sun=False):
         """
@@ -376,7 +390,8 @@ class my_star(my_stellar_core):
             plt.suptitle('Cross-section of star')
         if filename != 0:
             fig.savefig('./../plots/'+filename + '.pdf')
-        if self.debug:  # Printing number of time in each region for debugging
+            print('./../plots/'+filename + '.pdf saved.')
+        if True:#self.debug:  # Printing number of time in each region for debugging
             print('Hits in')
             print('Convection outside',counter[0])
             print('Radiation  outside',counter[1])
@@ -423,10 +438,11 @@ class my_star(my_stellar_core):
     def plot_sanity(self):
         """ Performs the plotted sanity check from app. E """
         self.set_to_default_initial_conditions(set_param_selfs=False)
-        solutions = self.ODE_solver(goal_testing_=False)
+        #self.mu_0 = 0.618
+        solutions = self.ODE_solver(goal_testing=False)
         self.set_normalaized_energies()
 
-        self.plot_cross_section(solutions,50,title='Cross section sanity test',filename='plot_sanity_cross_section')
+        self.plot_cross_section(solutions,1,title='Cross section sanity test',filename='plot_sanity_cross_section')
         R = solutions[0][0]
         Fc = np.asarray(self.Fc_list)
         Fr = np.asarray(self.Fr_list)
@@ -447,6 +463,7 @@ class my_star(my_stellar_core):
         fig.suptitle('Temperature gradients sanity check')
         
         fig.savefig('./../plots/plot_sanity.pdf')
+        print('./../plots/plot_sanity.pdf saved:')
 
         #handles, labels = ax.get_legend_handles_labels()
         #fig.legend(*ax.get_legend_handles_labels())#handles,labels)
@@ -481,8 +498,8 @@ if __name__ == '__main__':
             # Star.plot_cross_section(sol)
             # sol = Star.load_solutions_from_file('test1.npz')
             # Star.plot_cross_section(sol)
-            
-
+        if sys.argv[1] == 'findstar' or sys.argv[1] == 'Findstar':
+            Star.find_my_star()
     plt.show()
 
 """

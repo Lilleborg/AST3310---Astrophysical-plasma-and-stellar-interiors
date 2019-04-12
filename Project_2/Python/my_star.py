@@ -130,7 +130,7 @@ class my_star(my_stellar_core):
         scale_rho = np.genfromtxt(filename,skip_header=1,usecols=2)
         
         for R,T,RHO in zip(scale_R,scale_T,scale_rho):
-            #if R == 1.233 and T == 1.000:
+            #if R == 1.233 and T == 1.000:  # From trying different sets
             #if R == 1.167 and T == 1.000:
             if R == 1.100 and T == 0.875:
                 self.R0 = R*g_i_p['R0']
@@ -147,28 +147,6 @@ class my_star(my_stellar_core):
                 fig.suptitle('Inspecting '+string)
                 fig.savefig('./../plots/plot_nabla_'+string.replace(' ','_')+'.pdf')
                 plt.close('all')
-
-
-
-
-        # with open('./../datafiles/good_initial_scales.txt','r') as ifile:
-        #     ifile.readline()
-        #     i = 0
-        #     for line in ifile:
-        #         scale_R,scale_T,scale_rho = [float(x) for x in line.split()]
-        #         self.R0 = scale_R*g_i_p['R0']
-        #         self.T0 = scale_T*g_i_p['T0']
-        #         self.rho0 = scale_rho*g_i_p['rho0']
-        #         string = '{:.3f}R0 {:.3f}T0 {:.3f}rho0'.format(scale_R,scale_T,scale_rho)
-        #         solution = self.ODE_solver()
-        #         self.plot_cross_section(solution,show_every=25,title='Cross section '+string,\
-        #             filename='plot_cross'+string.replace(' ','_'),scale_with_sun=True)
-        #         i += 1
-        #         plt.close('all')
-        #         if i%50 == 0:
-        #             stop = input('Stop y/n?')
-        #             if stop == 'y':
-        #                 break
 
     def final_star(self):
         """
@@ -250,8 +228,6 @@ class my_star(my_stellar_core):
         Tax.plot(s_R,T*1e-6)
         Dax.semilogy(s_R,s_rho)
 
-        
-        Lax.axhline(y=0.995,color='b',linestyle='--',alpha=0.5)
         for ax in [Pax,Lax,Max,Tax,Dax]:
             ax.axvline(x=s_R[index_core],color='b',linestyle='--',alpha=0.5)
             ax.axvline(x=s_R[convection_end],color='r',linestyle='--',alpha=0.5)
@@ -264,7 +240,7 @@ class my_star(my_stellar_core):
         ####
         # Plotting flux fractions and temperature gradients
         legstr = [r'$\nabla_{\text{stable}}$',r'$\nabla^{\star}$',r'$\nabla_{\text{ad}}$']
-        fig, ax = plt.subplots(3,1)
+        fig, ax = plt.subplots(3,1,figsize=(10,8))
 
         ax[0].plot(s_R,Fc/FcFr,label=r'$\frac{Fc}{Fc+Fr}$')
         ax[0].plot(s_R,Fr/FcFr,label=r'$\frac{Fr}{Fc+Fr}$')
@@ -293,7 +269,7 @@ class my_star(my_stellar_core):
         ######
         # Plotting energy chains
         self.set_normalaized_energies()        
-        fig, ax = plt.subplots(3,1)
+        fig, ax = plt.subplots(3,1,figsize=(10,8))
         for i in [0,2]:
             ax[i].plot(s_R,epsilon/np.max(epsilon),label=r'$\varepsilon/\varepsilon_{\text{max}}$')
             ax[i].plot(s_R,self.PP1_ar,label='PP-1')
@@ -304,7 +280,7 @@ class my_star(my_stellar_core):
         ax[2].set_title('Magnifying the core')
         ax[2].set_xlim(-0.009,s_R[index_core]*1.02)
         ax[2].set_xlabel(r'$R/R_0$')
-        
+
         ax[1].plot(s_R,T*1e-6)
         ax[1].set_ylabel(r'$T[MK]$')
         ax[1].set_xlabel(r'$R/R_0$')

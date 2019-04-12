@@ -2,6 +2,7 @@ from numpy import pi as pi
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+from datetime import datetime
 
 import sys
 sys.path.append("../../project_0")         # for own use when developing
@@ -36,6 +37,11 @@ class my_star(my_stellar_core):
         self.datafiles_path = '../datafiles/'
         self.debug = False
 
+        # Good initials from manual search:
+        self.good_R0_scale = 1.1
+        self.good_T0_scale = 0.95
+        self.good_rho0_scale = 250
+
     def ODE_solver(self,RHS=0,input_dm = -1e-20*Sun.M,variable_step=True,goal_testing=False):
         """
         A wrapper for solving the new system of ODE using the framework in p1
@@ -46,7 +52,7 @@ class my_star(my_stellar_core):
         Stores values for tracked quantities for each mass shell (done inside get_RHS)
         returns set of solutions of each parameter
         """
-        self.R_convective_end = self.R0*0.90
+        self.R_convective_end_goal = self.R0*0.85
         if RHS==0:
             RHS = self.get_RHS
         # Create list to store tracked values at each mass shell
@@ -67,7 +73,7 @@ class my_star(my_stellar_core):
         #print('etter super ode',len(project2_values[2]),len(self.nabla_stable_list))
         return solutions,project2_values
 
-    def experiment_deep_convection(self,use_goals=False,tlim=[0.7,5,6],rlim=[0.6,5,6],\
+    def experiment_deep_convection(self,use_goals=False,tlim=[0.6,5,6],rlim=[0.6,5,6],\
         rholim=[1,300,4],filename='plot_nabla_vary_',title='Experimenting with different intial '):
         """
         """
@@ -90,9 +96,340 @@ class my_star(my_stellar_core):
             title=title+'temperatures',filename=filename+'T')
         self.T0 = g_i_p['T0']
 
-    def find_my_star(self,tlim=[0.8,1.2,6],rlim=[0.8,1.2,6],rholim=[5,50,10]):
-        self.experiment_deep_convection(use_goals=True,tlim=tlim,rlim=rlim,rholim=rholim,\
-            filename='good_star',title='test')
+    def find_my_star(self,tlim=[0.8,1.1,5],rlim=[0.9,1.5,5],rholim=[5,300,20]):
+        # low r for reaching core
+        # low t for no convection in core
+        # self.experiment_deep_convection(use_goals=True,tlim=tlim,rlim=rlim,rholim=rholim,\
+        #     filename='good_star',title='test')
+        good_initial_params_scales = []
+        g_i_p = self.given_initial_params
+        for scale_T in np.linspace(*tlim):
+            self.T0 = scale_T*g_i_p['T0']
+            for scale_R in np.linspace(*rlim):
+                scale_R = 1.1
+                self.R0 = scale_R*g_i_p['R0']
+
+                for scale_rho in np.linspace(*rholim):
+                    self.rho0 = scale_rho*g_i_p['rho0']
+                    string = '{:.3f} {:.3f} {:.3f}\n'.format(scale_R,scale_T,scale_rho)
+                    print(string)
+                    sol = self.ODE_solver(goal_testing=True)
+                    if not np.all(np.isnan(sol[0])):
+                        good_initial_params_scales.append(string)
+        #if len(good_initial_params_scales)>0:
+        with open('./../datafiles/good_initial_scales.txt','a') as ofile:
+            for i,str_ in enumerate(good_initial_params_scales):
+                ofile.write(str_)
+            print('./../datafiles/good_initial_scales.txt saved.')
+
+    def view_good_experiment(self):
+        g_i_p = self.given_initial_params
+        filename = './../datafiles/good_initial_scales.txt'
+        scale_R = np.genfromtxt(filename,skip_header=1,usecols=0)
+        scale_T = np.genfromtxt(filename,skip_header=1,usecols=1)
+        scale_rho = np.genfromtxt(filename,skip_header=1,usecols=2)
+        
+        for R,T,RHO in zip(scale_R,scale_T,scale_rho):
+            #if R == 1.233 and T == 1.000:
+            #if R == 1.167 and T == 1.000:
+            if R == 1.100 and T == 0.875:
+                self.R0 = R*g_i_p['R0']
+                self.T0 = T*g_i_p['T0']
+                self.rho0 = RHO*g_i_p['rho0']
+                string = '{:.3f}R0 {:.3f}T0 {:.3f}rho0'.format(R,T,RHO)
+                sol = self.ODE_solver()
+
+                R = sol[0][0]
+                legstr = [r'$\nabla_{\text{stable}}$',r'$\nabla^{\star}$',r'$\nabla_{\text{ad}}$']
+                fig, ax = plt.subplots(1,1)
+                ax.semilogy(R/self.R0,self.nabla_stable_list,label=legstr[0])
+                ax.semilogy([0,R[0]/self.R0],[self.nabla_ad,self.nabla_ad],label=legstr[2])
+                fig.suptitle('Inspecting '+string)
+                fig.savefig('./../plots/plot_nabla_'+string.replace(' ','_')+'.pdf')
+                plt.close('all')
+
+
+
+
+        # with open('./../datafiles/good_initial_scales.txt','r') as ifile:
+        #     ifile.readline()
+        #     i = 0
+        #     for line in ifile:
+        #         scale_R,scale_T,scale_rho = [float(x) for x in line.split()]
+        #         self.R0 = scale_R*g_i_p['R0']
+        #         self.T0 = scale_T*g_i_p['T0']
+        #         self.rho0 = scale_rho*g_i_p['rho0']
+        #         string = '{:.3f}R0 {:.3f}T0 {:.3f}rho0'.format(scale_R,scale_T,scale_rho)
+        #         solution = self.ODE_solver()
+        #         self.plot_cross_section(solution,show_every=25,title='Cross section '+string,\
+        #             filename='plot_cross'+string.replace(' ','_'),scale_with_sun=True)
+        #         i += 1
+        #         plt.close('all')
+        #         if i%50 == 0:
+        #             stop = input('Stop y/n?')
+        #             if stop == 'y':
+        #                 break
+
+    def final_star(self):
+        """
+        I did not have time to write this method more elegant by reusing existing methods.
+        Uses the good initial parameters from manual search, solves the system and plots
+        the required figures.
+        """
+        self.set_to_default_initial_conditions(False)
+        g_i_p = self.given_initial_params
+        self.R0 = self.good_R0_scale*g_i_p['R0']
+        self.T0 = self.good_T0_scale*g_i_p['T0']
+        self.rho0 = self.good_rho0_scale*g_i_p['rho0']
+        string = '{:.3f}R0 {:.3f}T0 {:.3f}rho0'.format(self.good_R0_scale,self.good_T0_scale,self.good_rho0_scale)
+        solution = self.ODE_solver()
+        R,L,T,P,rho,epsilon,M = solution[0]
+        s_R,s_L,T,P,s_rho,s_eps,s_M = self.get_scaled_parameter_lists(solution[0])
+        Fc = np.asarray(self.Fc_list)
+        Fr = np.asarray(self.Fr_list)
+        FcFr = Fr+Fc
+        convection_end = np.argmin(Fc) # Get the first index where Fc=0
+
+        ######
+        # Plotting main parameters and cross section
+        # fig, ((Pax,Lax,crossax),(Max,Tax,Dax)) = plt.subplots(2,3)
+        # # Set up each axis object:
+        # Pax.set_title('Pressure vs radius')
+        # Pax.set_ylabel(r'$P [PPa]$')
+        
+        # Lax.set_title('Luminosity vs radius')
+        # Lax.set_ylabel(r'$L/L_0$')
+
+        # crossax.set_title('Cross section')
+        # rmax = 1.1*s_R[0]
+        # crossax.set_xlim(-rmax,rmax)
+        # crossax.set_ylim(-rmax,rmax)
+        # crossax.set_aspect('equal')
+
+        # Max.set_title('Mass vs radius')
+        # Max.set_ylabel(r'$M/M_0$')
+        # Max.set_xlabel(r'$R/R_0$')
+
+        # Tax.set_title('Temperature vs radius')
+        # Tax.set_ylabel(r'$T[MK]$')
+        # Tax.set_xlabel(r'$R/R_0$')
+
+        # Dax.set_title('Density vs radius')
+        # Dax.set_ylabel(r'$\rho/\rho_0$')
+        # Dax.set_xlabel(r'$R/R_0$')
+
+        # # Filling in the cross section
+        # show_every = 15
+        # j = show_every
+        # for k in range(0,len(R)-1):
+        #     j += 1
+        #     if j >= show_every: # don't show every step - it slows things down
+        #         if(s_L[k] > 0.995):   # outside core
+        #             if(Fc[k] > 0.0):      # convection
+        #                 circR = plt.Circle((0,0),s_R[k],color='red',fill=False)
+        #                 crossax.add_artist(circR)
+        #             else:               # radiation
+        #                 circY = plt.Circle((0,0),s_R[k],color='yellow',fill=False)
+        #                 crossax.add_artist(circY)
+        #         else:               # inside core
+        #             if(Fc[k] > 0.0):      # convection
+        #                 circB = plt.Circle((0,0),s_R[k],color='blue',fill = False)
+        #                 crossax.add_artist(circB)
+        #             else:               # radiation
+        #                 circC = plt.Circle((0,0),s_R[k],color='cyan',fill = False)
+        #                 crossax.add_artist(circC)
+        #         j = 0
+
+        # Pax.semilogy(s_R,P)
+        # Lax.plot(s_R,s_L)
+        # Max.plot(s_R,s_M)
+        # Tax.plot(s_R,T*1e-6)
+        # Dax.semilogy(s_R,s_rho)
+
+        # index_core = np.argmin(np.abs(s_L-0.995))
+        # Lax.axhline(y=0.995,color='b',linestyle='--',alpha=0.5)
+        # for ax in [Pax,Lax,Max,Tax,Dax]:
+        #     ax.axvline(x=s_R[index_core],color='b',linestyle='--',alpha=0.5)
+        #     ax.axvline(x=s_R[convection_end],color='r',linestyle='--',alpha=0.5)
+
+        # fig.suptitle('Main parameters and cross section, '+r'$R0 = %sR_0, T0 = %sT_0, \rho 0 = %s\rho_0$'\
+        #     %(str(self.good_R0_scale),str(self.good_T0_scale),str(self.good_rho0_scale)))
+        # fig.savefig('./../plots/best/plot_params_cross_best'+string.replace(' ','_')+'.pdf')
+        # print('./../plots/best/plot_params_cross_best'+string.replace(' ','_')+'.pdf saved.')
+        
+        ######
+        # Plotting flux fractions and temperature gradients
+        legstr = [r'$\nabla_{\text{stable}}$',r'$\nabla^{\star}$',r'$\nabla_{\text{ad}}$']
+        fig, ax = plt.subplots(3,1)
+
+        ax[0].plot(s_R,Fc/FcFr,label=r'$\frac{Fc}{Fc+Fr}$')
+        ax[0].plot(s_R,Fr/FcFr,label=r'$\frac{Fr}{Fc+Fr}$')
+        ax[0].legend()
+        ax[0].set_ylabel('Fractions of flux')
+
+        for i in range(1,3):
+            ax[i].semilogy(s_R,self.nabla_stable_list,label=legstr[0])
+            ax[i].semilogy(s_R,self.nabla_star_list,label=legstr[1])
+            ax[i].semilogy([0,1],[self.nabla_ad,self.nabla_ad],'-.',label=legstr[2],color='k')
+            ax[i].legend()
+            ax[i].set_xlabel(r'$R/R_0$')
+            ax[i].set_ylabel(r'$\nabla$')
+        ax[1].set_ylim(1e-2,np.max(self.nabla_stable_list)*2)
+        ax[2].set_ylim(self.nabla_star_list[convection_end]*0.98,np.max(self.nabla_star_list)*1.02)
+        ax[2].set_xlim(s_R[convection_end]*0.98,s_R[0]*1.02)
+
+        # ax[1].semilogy(R/R[0],self.nabla_stable_list,label=legstr[0])
+        # ax[1].semilogy(R/R[0],self.nabla_star_list,label=legstr[1])
+        # ax[1].semilogy([0,1],[self.nabla_ad,self.nabla_ad],'-.',label=legstr[2],color='k')
+        # ax[1].legend()
+        # ax[1].set_xlabel(r'$R/R_0$')
+        # ax[1].set_ylabel(r'$\nabla$')
+
+        fig.suptitle('Temperature gradients and fractions of heat transportation')
+        fig.savefig('./../plots/best/plot_nablas_best'+string.replace(' ','_')+'.pdf')
+        print('./../plots/best/plot_nablas_best'+string.replace(' ','_')+'.pdf')
+        
+        ######
+        # Plotting energy chains
+        self.set_normalaized_energies()        
+        fig, ax = plt.subplots(1,1)
+        ax.plot(s_R,self.PP1_ar,label='PP-1')
+        ax.plot(s_R,self.PP2_ar,label='PP-2')
+        ax.plot(s_R,self.PP3_ar,label='PP-3')
+        plt.show()
+
+        # #plt.title('Not currently working')
+        # plt.plot(r,self.PP1_ar,label='PP1')
+        # plt.plot(r,self.PP2_ar,label='PP2')
+        # plt.plot(r,self.PP3_ar,label='PP3')
+        # plt.legend()
+    # ---------------- Plotters --------------- #
+    # ----------------------------------------- #
+    def plot_nablas_set_of_solutions(self,set_of_solutions,title=0,exp_param=0,filename=0):
+        g_i_p = self.given_initial_params   # Used for scaling in labels
+        mpl.rcParams['figure.constrained_layout.use']= False
+        fig, ax = plt.subplots(2,3,sharex='col',sharey='row',squeeze=False)
+        i = 0
+        n = 0    # number of solutions
+        #super_add = ''   # Dummy variable
+        for j,different_sets in enumerate(set_of_solutions):   
+            for k,solution in enumerate(different_sets):
+                n += 1
+                if j > 2:
+                    i = 1
+                    j -= 3
+                R,_,T,_,rho,_,M = solution[0]
+                s_R,_,T,_,s_rho,_,s_M = self.get_scaled_parameter_lists(solution[0])
+                nabla_stb = solution[1][2]
+                ax[i,j].semilogy(s_R,nabla_stb,label=r'$\rho0 = {:.2f}\rho_0$'.format(rho[0]/g_i_p['rho0']))
+                
+                if exp_param == 'R':
+                    ax[i,j].set_title(r'$R0 = %.2f R_0$'%(R[0]/g_i_p['R0']))
+                    #super_add = 'radii'
+                if exp_param == 'T':
+                    ax[i,j].set_title(r'$T0 = %.2f T_0$'%(T[0]/g_i_p['T0']))
+                    #super_add = 'temperatures'
+
+                if k == 0:
+                    ax[i,j].semilogy([0,1],[self.nabla_ad,self.nabla_ad],'-.',color='k')
+                    ax[i,j].set_ylim(0.1,1e5)
+                    for A in range(3):
+                        ax[1,A].set_xlabel(r'$R/R_0$')
+                        if A < 2:
+                            ax[A,0].set_ylabel(r'$\nabla_{\text{stable}}$')
+        if n != 0:
+            handles,labels = ax[i,j].get_legend_handles_labels()    
+            fig.legend(handles,labels,loc='upper center',bbox_to_anchor=(0.5,0.1),ncol=n)
+            fig.suptitle(str(title))
+            fig.tight_layout(rect=[0, 0.06, 1, 0.95],h_pad=1)
+            if filename != 0:
+                fig.savefig('./../plots/'+filename + '.pdf')
+                print('./../plots/'+filename + '.pdf saved.')
+
+    def plot_cross_section(self,solutions,show_every=25,title=0,filename=0,scale_with_sun=False,show=False):
+        """
+        Modified version of cross_section.py
+        # --------------------------------------------------------------------
+        # * F_C_list is an array of convective flux ratios (at each r)
+                #[unit: relative value between 0 and 1]
+        # * n is the number of elements
+        # * (show_every = 50 worked well for me)
+        # * core_limit = 0.995 (when L drops below this value, we are in the core)
+        # --------------------------------------------------------------------
+        """
+        if self.break_goals:    # If run is broken dont try to plot it!
+            return
+        g_i_p = self.given_initial_params   # Used for scaling in labels
+        r,L = solutions[0][:2]
+        if scale_with_sun:
+            r = r/Sun.R
+            L = L/Sun.L
+            lab = r'$R/R_\odot$'
+        else:
+            r = r/g_i_p['R0']
+            L = L/g_i_p['L0']
+            lab = r'$R/R_0$'
+        core_limit = 0.995
+        F_C_list = solutions[1][0] #self.Fc_list
+        n = len(r)
+
+        fig, ax = plt.subplots(1,1)
+        ax.set_ylabel(lab)
+        ax.set_xlabel(lab)
+        rmax = 1.2*r[0]
+        ax.set_xlim(-rmax,rmax)
+        ax.set_ylim(-rmax,rmax)
+        ax.set_aspect('equal')  # make the plot circular
+        
+        counter = np.zeros(4)   # Tracks number of times in each region
+        j = show_every
+        for k in range(0, n-1):
+            j += 1
+            if j >= show_every: # don't show every step - it slows things down
+                if(L[k] > core_limit):   # outside core
+                    if(F_C_list[k] > 0.0):      # convection
+                        circR = plt.Circle((0,0),r[k],color='red',fill=False)
+                        ax.add_artist(circR)
+                        counter[0] += 1
+                    else:               # radiation
+                        circY = plt.Circle((0,0),r[k],color='yellow',fill=False)
+                        ax.add_artist(circY)
+                        counter[1] += 1
+                else:               # inside core
+                    if(F_C_list[k] > 0.0):      # convection
+                        circB = plt.Circle((0,0),r[k],color='blue',fill = False)
+                        ax.add_artist(circB)
+                        counter[2] += 1
+                    else:               # radiation
+                        circC = plt.Circle((0,0),r[k],color='cyan',fill = False)
+                        ax.add_artist(circC)
+                        counter[3] += 1
+                j = 0
+            # if k == n-2:
+            #     circempty = plt.Circle((0,0),r[k],color='white',fill=True)
+            #     ax.add_artist(circempty)
+
+        circR = plt.Circle((2*rmax,2*rmax),0.1*rmax,color='red',fill=True)      # These are for the legend (drawn outside the main plot)
+        circY = plt.Circle((2*rmax,2*rmax),0.1*rmax,color='yellow',fill=True)
+        circC = plt.Circle((2*rmax,2*rmax),0.1*rmax,color='cyan',fill=True)
+        circB = plt.Circle((2*rmax,2*rmax),0.1*rmax,color='blue',fill=True)
+        fig.legend([circR, circY, circC, circB],['Convection outside core',\
+            'Radiation outside core', 'Radiation inside core','Convection inside core'])
+    
+        if title != 0:
+            plt.suptitle(title)
+        else:
+            plt.suptitle('Cross-section of star')
+        if filename != 0:
+            print('./../plots/'+filename + '.pdf saved.')
+            fig.savefig('./../plots/'+filename + '.pdf')
+        if True:#self.debug:  # Printing number of time in each region for debugging
+            print('Hits in')
+            print('Convection outside',counter[0])
+            print('Radiation  outside',counter[1])
+            print('Convection  inside',counter[2])
+            print('Radiation   inside',counter[3])
+            #plt.show()
 
     # ------------- Getters/setters ------------- #
     # ------------------------------------------- #
@@ -200,7 +537,7 @@ class my_star(my_stellar_core):
         # Mean molecular weight
         self.mu_0 = 1/(2*self.X+self.Y3+3/4*(self.Y-self.Y3)+1/2*(self.Z-self.Z_Li-self.Z_Be)\
                     +4/7*self.Z_Li+5/7*self.Z_Be)
-
+        self.given_initial_params = {'L0':self.L0,'M0':self.M0,'rho0':self.rho0,'T0':self.T0,'R0':self.R0}
         if set_param_selfs:
             self.P0 = self.get_P_EOS(self.rho0,self.T0)
             engine = stellar_engine()
@@ -218,10 +555,10 @@ class my_star(my_stellar_core):
     # ------------ Convenient funcs ----------- #
     # ----------------------------------------- #
     def is_result_good(self,solution,inODE=False,final=False):
-        if not final:
-            if self.R > self.R_convective_end and self.R < 0.99*self.R0:
+        if not final:   # Testing only for convection zone
+            if self.R > self.R_convective_end_goal and self.R < 0.99*self.R0:
                 is_convective = self.Fc_list[-1]> 0
-                if not is_convective:
+                if not is_convective:   # If 
                     print(40*'-')
                     print('Breaking')
                     print('Initial convective zone not deep enough')
@@ -270,133 +607,6 @@ class my_star(my_stellar_core):
         Fr = solutions['arr_8']
         nabla_stable = solutions['arr_9']
         return [R,L,T,P,rho,eps,M],[Fc]
-
-    # ---------------- Plotters --------------- #
-    # ----------------------------------------- #
-    def plot_nablas_set_of_solutions(self,set_of_solutions,title=0,exp_param=0,filename=0):
-        g_i_p = self.given_initial_params   # Used for scaling in labels
-        mpl.rcParams['figure.constrained_layout.use']= False
-        fig, ax = plt.subplots(2,3,sharex='col',sharey='row',squeeze=False)
-        i = 0
-        n = 0    # number of solutions
-        super_add = ''   # Dummy variable
-        for j,different_sets in enumerate(set_of_solutions):   
-            for k,solution in enumerate(different_sets):
-                n += 1
-                if j > 2:
-                    i = 1
-                    j -= 3
-                R,_,T,_,rho,_,M = solution[0]
-                s_R,_,T,_,s_rho,_,s_M = self.get_scale_parameter_lists(solution[0])
-                nabla_stb = solution[1][2]
-
-                ax[i,j].semilogy(s_R,nabla_stb,label=r'$\rho0 = {:.2f}\rho_0$'.format(rho[0]/g_i_p['rho0']))
-                
-                if exp_param == 'R':
-                    ax[i,j].set_title(r'$R0 = %.2f R_0$'%(R[0]/g_i_p['R0']))
-                    super_add = 'radii'
-                if exp_param == 'T':
-                    ax[i,j].set_title(r'$T0 = %.2f T_0$'%(T[0]/g_i_p['T0']))
-                    super_add = 'temperatures'
-                if k == 0:
-                    ax[i,j].semilogy([0,1],[self.nabla_ad,self.nabla_ad],'-.',color='k')
-                    ax[i,j].set_ylim(0.1,1e5)
-                    for A in range(3):
-                        ax[1,A].set_xlabel(r'$R/R_0$')
-                        if A < 2:
-                            ax[A,0].set_ylabel(r'$\nabla_{\text{stable}}$')
-        if n != 0:
-            handles,labels = ax[0,0].get_legend_handles_labels()    
-            fig.legend(handles,labels,loc='upper center',bbox_to_anchor=(0.5,0.1),ncol=n)#[r'$\nabla_{\text{stable}}$',r'$\nabla_{\text{stable}}$'])    
-            fig.suptitle(str(title))
-            fig.tight_layout(rect=[0, 0.06, 1, 0.95],h_pad=1)
-            if filename != 0:
-                fig.savefig('./../plots/'+filename + '.pdf')
-                print('./../plots/'+filename + '.pdf saved.')
-
-    def plot_cross_section(self,solutions,show_every=25,title=0,filename=0,scale_with_sun=False):
-        """
-        Modified version of cross_section.py
-        # --------------------------------------------------------------------
-        # * F_C_list is an array of convective flux ratios (at each r)
-                #[unit: relative value between 0 and 1]
-        # * n is the number of elements
-        # * (show_every = 50 worked well for me)
-        # * core_limit = 0.995 (when L drops below this value, we are in the core)
-        # --------------------------------------------------------------------
-        """
-        if self.break_goals:    # If run is broken dont try to plot it!
-            return
-        g_i_p = self.given_initial_params   # Used for scaling in labels
-        r,L = solutions[0][:2]
-        if scale_with_sun:
-            r = r/Sun.R
-            L = L/Sun.L
-            lab = r'$R/R_\odot$'
-        else:
-            r = r/g_i_p['R0']
-            L = L/g_i_p['L0']
-            lab = r'$R/R_0$'
-        core_limit = 0.995
-        F_C_list = solutions[1][0] #self.Fc_list
-        n = len(r)
-
-        fig, ax = plt.subplots(1,1)
-        rmax = 1.2*r[0]
-        ax.set_ylabel(lab)
-        ax.set_xlabel(lab)
-        ax.set_xlim(-rmax,rmax)
-        ax.set_ylim(-rmax,rmax)
-        ax.set_aspect('equal')  # make the plot circular
-        
-        counter = np.zeros(4)   # Tracks number of times in each region
-        j = show_every
-        for k in range(0, n-1):
-            j += 1
-            if j >= show_every: # don't show every step - it slows things down
-                if(L[k] > core_limit):   # outside core
-                    if(F_C_list[k] > 0.0):      # convection
-                        circR = plt.Circle((0,0),r[k],color='red',fill=True)
-                        ax.add_artist(circR)
-                        counter[0] += 1
-                    else:               # radiation
-                        circY = plt.Circle((0,0),r[k],color='yellow',fill=True)
-                        ax.add_artist(circY)
-                        counter[1] += 1
-                else:               # inside core
-                    if(F_C_list[k] > 0.0):      # convection
-                        circB = plt.Circle((0,0),r[k],color='blue',fill = True)
-                        ax.add_artist(circB)
-                        counter[2] += 1
-                    else:               # radiation
-                        circC = plt.Circle((0,0),r[k],color='cyan',fill = True)
-                        ax.add_artist(circC)
-                        counter[3] += 1
-                j = 0
-            if k == n-2:
-                circempty = plt.Circle((0,0),r[k],color='white',fill=True)
-                ax.add_artist(circempty)
-
-        circR = plt.Circle((2*rmax,2*rmax),0.1*rmax,color='red',fill=True)      # These are for the legend (drawn outside the main plot)
-        circY = plt.Circle((2*rmax,2*rmax),0.1*rmax,color='yellow',fill=True)
-        circC = plt.Circle((2*rmax,2*rmax),0.1*rmax,color='cyan',fill=True)
-        circB = plt.Circle((2*rmax,2*rmax),0.1*rmax,color='blue',fill=True)
-        fig.legend([circR, circY, circC, circB],['Convection outside core',\
-            'Radiation outside core', 'Radiation inside core','Convection inside core'])
-    
-        if title != 0:
-            plt.suptitle(title)
-        else:
-            plt.suptitle('Cross-section of star')
-        if filename != 0:
-            fig.savefig('./../plots/'+filename + '.pdf')
-            print('./../plots/'+filename + '.pdf saved.')
-        if True:#self.debug:  # Printing number of time in each region for debugging
-            print('Hits in')
-            print('Convection outside',counter[0])
-            print('Radiation  outside',counter[1])
-            print('Convection  inside',counter[2])
-            print('Radiation   inside',counter[3])
 
     # ------------- Sanity checks ------------- #
     # ----------------------------------------- #
@@ -467,17 +677,7 @@ class my_star(my_stellar_core):
 
         #handles, labels = ax.get_legend_handles_labels()
         #fig.legend(*ax.get_legend_handles_labels())#handles,labels)
-        # plt.figure()
-        # plt.plot(r,Fc/FcFr,label='Fc')
-        # plt.plot(r,Fr/FcFr,label='Fr')
-        # plt.legend()
-
-        # plt.figure()
-        # plt.title('Not currently working')
-        # plt.plot(r,self.PP1_ar,label='PP1')
-        # plt.plot(r,self.PP2_ar,label='PP2')
-        # plt.plot(r,self.PP3_ar,label='PP3')
-        # plt.legend()
+        
 
 if __name__ == '__main__':
     Star = my_star('Renate')
@@ -487,19 +687,14 @@ if __name__ == '__main__':
             Star.example_sanity()
             Star.plot_sanity()
         if sys.argv[1] == 'experiment' or sys.argv[1] == 'Experiment':  # Run the initial experiments
-            Star.experiment_deep_convection()
-            
-            # Star.plot_nablas_set_of_solutions(sol)
-            # print(len(sol[0][0]))
-            # Star.save_solutions_to_file(sol[0],'test0')
-            # Star.save_solutions_to_file(sol[1],'test1')
-            # # Star.save_solutions_to_file(sol,'test')
-            # sol = Star.load_solutions_from_file('test0.npz')
-            # Star.plot_cross_section(sol)
-            # sol = Star.load_solutions_from_file('test1.npz')
-            # Star.plot_cross_section(sol)
+            Star.experiment_deep_convection(use_goals=False)
         if sys.argv[1] == 'findstar' or sys.argv[1] == 'Findstar':
             Star.find_my_star()
+        if sys.argv[1] == 'viewgood' or sys.argv[1] == 'Viewgood':
+            Star.view_good_experiment()
+        if sys.argv[1] == 'final' or sys.argv[1] == 'final':
+            Star.final_star()
+
     plt.show()
 
 """

@@ -364,7 +364,7 @@ class my_stellar_core(stellar_engine):
         for set_of_solutions in solutions:
             r,L,T,P,rho,eps,M = set_of_solutions
             # Normalized/scaled quantyties:
-            s_R,s_L,T,P,s_rho,s_eps,s_M = self.get_scale_parameter_lists(set_of_solutions)
+            s_R,s_L,T,P,s_rho,s_eps,s_M = self.get_scaled_parameter_lists(set_of_solutions)
             
             # Handling labels for different scenarios with the Rax axis:
             Rlabel = r'$R0 = {:.2f} R_0$'.format(r[0]/g_i_p['R0'])
@@ -450,7 +450,7 @@ class my_stellar_core(stellar_engine):
         for set_of_solutions in solutions:
             r,L,T,P,rho,epsilon,M = set_of_solutions
             # Normalized/scaled quantyties:
-            s_R,s_L,T,P,s_rho,s_eps,s_M = self.get_scale_parameter_lists(set_of_solutions)
+            s_R,s_L,T,P,s_rho,s_eps,s_M = self.get_scaled_parameter_lists(set_of_solutions)
             Label = r'$T0 = %.2f T_0$' '\n' r'$\rho 0 = %.2f \rho_0$'%(T[0]/g_i_p['T0'],rho[0]/g_i_p['rho0'])
 
             Pax.semilogy(s_R,P,label=Label)
@@ -537,7 +537,7 @@ class my_stellar_core(stellar_engine):
             kappa_SI = 10**log_kappa*1e-1                           # kappa in SI
             return kappa_SI
 
-    def get_scale_parameter_lists(self,set_of_solutions):
+    def get_scaled_parameter_lists(self,set_of_solutions):
         """ Helper function for scaling the parameters by their initial value """
         r,L,T,P,rho,epsilon,M = set_of_solutions
         return[r/r[0],L/L[0],T,P,rho/rho[0],epsilon/epsilon[0],M/M[0]]

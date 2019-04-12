@@ -189,75 +189,79 @@ class my_star(my_stellar_core):
         Fr = np.asarray(self.Fr_list)
         FcFr = Fr+Fc
         convection_end = np.argmin(Fc) # Get the first index where Fc=0
+        index_core = np.argmin(np.abs(s_L-0.995))   # Get index of core
+        print('Chosen best model')
+        print('Convection into {:.3f}'.format(s_R[convection_end]))
+        print('Core reaching {:.3f}'.format(s_R[index_core]))
 
         ######
         # Plotting main parameters and cross section
-        # fig, ((Pax,Lax,crossax),(Max,Tax,Dax)) = plt.subplots(2,3)
-        # # Set up each axis object:
-        # Pax.set_title('Pressure vs radius')
-        # Pax.set_ylabel(r'$P [PPa]$')
+        fig, ((Pax,Lax,crossax),(Max,Tax,Dax)) = plt.subplots(2,3)
+        # Set up each axis object:
+        Pax.set_title('Pressure vs radius')
+        Pax.set_ylabel(r'$P [PPa]$')
         
-        # Lax.set_title('Luminosity vs radius')
-        # Lax.set_ylabel(r'$L/L_0$')
+        Lax.set_title('Luminosity vs radius')
+        Lax.set_ylabel(r'$L/L_0$')
 
-        # crossax.set_title('Cross section')
-        # rmax = 1.1*s_R[0]
-        # crossax.set_xlim(-rmax,rmax)
-        # crossax.set_ylim(-rmax,rmax)
-        # crossax.set_aspect('equal')
+        crossax.set_title('Cross section')
+        rmax = 1.1*s_R[0]
+        crossax.set_xlim(-rmax,rmax)
+        crossax.set_ylim(-rmax,rmax)
+        crossax.set_aspect('equal')
 
-        # Max.set_title('Mass vs radius')
-        # Max.set_ylabel(r'$M/M_0$')
-        # Max.set_xlabel(r'$R/R_0$')
+        Max.set_title('Mass vs radius')
+        Max.set_ylabel(r'$M/M_0$')
+        Max.set_xlabel(r'$R/R_0$')
 
-        # Tax.set_title('Temperature vs radius')
-        # Tax.set_ylabel(r'$T[MK]$')
-        # Tax.set_xlabel(r'$R/R_0$')
+        Tax.set_title('Temperature vs radius')
+        Tax.set_ylabel(r'$T[MK]$')
+        Tax.set_xlabel(r'$R/R_0$')
 
-        # Dax.set_title('Density vs radius')
-        # Dax.set_ylabel(r'$\rho/\rho_0$')
-        # Dax.set_xlabel(r'$R/R_0$')
+        Dax.set_title('Density vs radius')
+        Dax.set_ylabel(r'$\rho/\rho_0$')
+        Dax.set_xlabel(r'$R/R_0$')
 
-        # # Filling in the cross section
-        # show_every = 15
-        # j = show_every
-        # for k in range(0,len(R)-1):
-        #     j += 1
-        #     if j >= show_every: # don't show every step - it slows things down
-        #         if(s_L[k] > 0.995):   # outside core
-        #             if(Fc[k] > 0.0):      # convection
-        #                 circR = plt.Circle((0,0),s_R[k],color='red',fill=False)
-        #                 crossax.add_artist(circR)
-        #             else:               # radiation
-        #                 circY = plt.Circle((0,0),s_R[k],color='yellow',fill=False)
-        #                 crossax.add_artist(circY)
-        #         else:               # inside core
-        #             if(Fc[k] > 0.0):      # convection
-        #                 circB = plt.Circle((0,0),s_R[k],color='blue',fill = False)
-        #                 crossax.add_artist(circB)
-        #             else:               # radiation
-        #                 circC = plt.Circle((0,0),s_R[k],color='cyan',fill = False)
-        #                 crossax.add_artist(circC)
-        #         j = 0
+        # Filling in the cross section
+        show_every = 15
+        j = show_every
+        for k in range(0,len(R)-1):
+            j += 1
+            if j >= show_every: # don't show every step - it slows things down
+                if(s_L[k] > 0.995):   # outside core
+                    if(Fc[k] > 0.0):      # convection
+                        circR = plt.Circle((0,0),s_R[k],color='red',fill=False)
+                        crossax.add_artist(circR)
+                    else:               # radiation
+                        circY = plt.Circle((0,0),s_R[k],color='yellow',fill=False)
+                        crossax.add_artist(circY)
+                else:               # inside core
+                    if(Fc[k] > 0.0):      # convection
+                        circB = plt.Circle((0,0),s_R[k],color='blue',fill = False)
+                        crossax.add_artist(circB)
+                    else:               # radiation
+                        circC = plt.Circle((0,0),s_R[k],color='cyan',fill = False)
+                        crossax.add_artist(circC)
+                j = 0
 
-        # Pax.semilogy(s_R,P)
-        # Lax.plot(s_R,s_L)
-        # Max.plot(s_R,s_M)
-        # Tax.plot(s_R,T*1e-6)
-        # Dax.semilogy(s_R,s_rho)
+        Pax.semilogy(s_R,P)
+        Lax.plot(s_R,s_L)
+        Max.plot(s_R,s_M)
+        Tax.plot(s_R,T*1e-6)
+        Dax.semilogy(s_R,s_rho)
 
-        # index_core = np.argmin(np.abs(s_L-0.995))
-        # Lax.axhline(y=0.995,color='b',linestyle='--',alpha=0.5)
-        # for ax in [Pax,Lax,Max,Tax,Dax]:
-        #     ax.axvline(x=s_R[index_core],color='b',linestyle='--',alpha=0.5)
-        #     ax.axvline(x=s_R[convection_end],color='r',linestyle='--',alpha=0.5)
-
-        # fig.suptitle('Main parameters and cross section, '+r'$R0 = %sR_0, T0 = %sT_0, \rho 0 = %s\rho_0$'\
-        #     %(str(self.good_R0_scale),str(self.good_T0_scale),str(self.good_rho0_scale)))
-        # fig.savefig('./../plots/best/plot_params_cross_best'+string.replace(' ','_')+'.pdf')
-        # print('./../plots/best/plot_params_cross_best'+string.replace(' ','_')+'.pdf saved.')
         
-        ######
+        Lax.axhline(y=0.995,color='b',linestyle='--',alpha=0.5)
+        for ax in [Pax,Lax,Max,Tax,Dax]:
+            ax.axvline(x=s_R[index_core],color='b',linestyle='--',alpha=0.5)
+            ax.axvline(x=s_R[convection_end],color='r',linestyle='--',alpha=0.5)
+
+        fig.suptitle('Main parameters and cross section, '+r'$R0 = %sR_0, T0 = %sT_0, \rho 0 = %s\rho_0$'\
+            %(str(self.good_R0_scale),str(self.good_T0_scale),str(self.good_rho0_scale)))
+        fig.savefig('./../plots/best/plot_params_cross_best'+string.replace(' ','_')+'.pdf')
+        print('./../plots/best/plot_params_cross_best'+string.replace(' ','_')+'.pdf saved.')
+        
+        ####
         # Plotting flux fractions and temperature gradients
         legstr = [r'$\nabla_{\text{stable}}$',r'$\nabla^{\star}$',r'$\nabla_{\text{ad}}$']
         fig, ax = plt.subplots(3,1)
@@ -267,23 +271,20 @@ class my_star(my_stellar_core):
         ax[0].legend()
         ax[0].set_ylabel('Fractions of flux')
 
-        for i in range(1,3):
-            ax[i].semilogy(s_R,self.nabla_stable_list,label=legstr[0])
-            ax[i].semilogy(s_R,self.nabla_star_list,label=legstr[1])
-            ax[i].semilogy([0,1],[self.nabla_ad,self.nabla_ad],'-.',label=legstr[2],color='k')
-            ax[i].legend()
-            ax[i].set_xlabel(r'$R/R_0$')
-            ax[i].set_ylabel(r'$\nabla$')
+        for i in range(0,3):
+            ax[i].axvline(x=s_R[index_core],color='b',linestyle='--',alpha=0.5)
+            ax[i].axvline(x=s_R[convection_end],color='r',linestyle='--',alpha=0.5)
+            if i > 0:
+                ax[i].semilogy(s_R,self.nabla_stable_list,label=legstr[0])
+                ax[i].semilogy(s_R,self.nabla_star_list,label=legstr[1])
+                ax[i].semilogy([0,1],[self.nabla_ad,self.nabla_ad],'-.',label=legstr[2],color='k')
+                ax[i].legend()
+                ax[i].set_xlabel(r'$R/R_0$')
+                ax[i].set_ylabel(r'$\nabla$')
         ax[1].set_ylim(1e-2,np.max(self.nabla_stable_list)*2)
         ax[2].set_ylim(self.nabla_star_list[convection_end]*0.98,np.max(self.nabla_star_list)*1.02)
         ax[2].set_xlim(s_R[convection_end]*0.98,s_R[0]*1.02)
-
-        # ax[1].semilogy(R/R[0],self.nabla_stable_list,label=legstr[0])
-        # ax[1].semilogy(R/R[0],self.nabla_star_list,label=legstr[1])
-        # ax[1].semilogy([0,1],[self.nabla_ad,self.nabla_ad],'-.',label=legstr[2],color='k')
-        # ax[1].legend()
-        # ax[1].set_xlabel(r'$R/R_0$')
-        # ax[1].set_ylabel(r'$\nabla$')
+        ax[2].set_title('Magnifying the convection zone')
 
         fig.suptitle('Temperature gradients and fractions of heat transportation')
         fig.savefig('./../plots/best/plot_nablas_best'+string.replace(' ','_')+'.pdf')
@@ -292,17 +293,30 @@ class my_star(my_stellar_core):
         ######
         # Plotting energy chains
         self.set_normalaized_energies()        
-        fig, ax = plt.subplots(1,1)
-        ax.plot(s_R,self.PP1_ar,label='PP-1')
-        ax.plot(s_R,self.PP2_ar,label='PP-2')
-        ax.plot(s_R,self.PP3_ar,label='PP-3')
+        fig, ax = plt.subplots(3,1)
+        for i in [0,2]:
+            ax[i].plot(s_R,epsilon/np.max(epsilon),label=r'$\varepsilon/\varepsilon_{\text{max}}$')
+            ax[i].plot(s_R,self.PP1_ar,label='PP-1')
+            ax[i].plot(s_R,self.PP2_ar,label='PP-2')
+            ax[i].plot(s_R,self.PP3_ar,label='PP-3')
+            ax[i].set_ylabel(r'$\varepsilon$ scaled')
+        ax[0].legend()
+        ax[2].set_title('Magnifying the core')
+        ax[2].set_xlim(-0.009,s_R[index_core]*1.02)
+        ax[2].set_xlabel(r'$R/R_0$')
+        
+        ax[1].plot(s_R,T*1e-6)
+        ax[1].set_ylabel(r'$T[MK]$')
+        ax[1].set_xlabel(r'$R/R_0$')
+        ax[1].set_title('Temperature vs mass')
+        for i in range(0,3):
+            ax[i].axvline(x=s_R[index_core],color='b',linestyle='--',alpha=0.5)
+            ax[i].axvline(x=s_R[convection_end],color='r',linestyle='--',alpha=0.5)
+        fig.suptitle('Fractional energy production from each PP-chain')
+        fig.savefig('./../plots/best/plot_energy_best'+string.replace(' ','_')+'.pdf')
+        print('./../plots/best/plot_energy_best'+string.replace(' ','_')+'.pdf')
         plt.show()
 
-        # #plt.title('Not currently working')
-        # plt.plot(r,self.PP1_ar,label='PP1')
-        # plt.plot(r,self.PP2_ar,label='PP2')
-        # plt.plot(r,self.PP3_ar,label='PP3')
-        # plt.legend()
     # ---------------- Plotters --------------- #
     # ----------------------------------------- #
     def plot_nablas_set_of_solutions(self,set_of_solutions,title=0,exp_param=0,filename=0):

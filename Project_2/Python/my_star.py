@@ -288,7 +288,7 @@ class my_star(my_stellar_core):
         for i in range(0,3):
             ax[i].axvline(x=s_R[index_core],color='b',linestyle='--',alpha=0.5)
             ax[i].axvline(x=s_R[convection_end],color='r',linestyle='--',alpha=0.5)
-        fig.suptitle('Fractional energy production from each PP-chain')
+        fig.suptitle('Relative energy production from each PP-chain')
         fig.savefig('./../plots/best/plot_energy_best'+string.replace(' ','_')+'.pdf')
         print('./../plots/best/plot_energy_best'+string.replace(' ','_')+'.pdf')
         plt.show()

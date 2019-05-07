@@ -36,7 +36,7 @@ class convection2D:
     nabla_inc = 1e-4            # Pertubation in nabla above adiabatic value
     nabla     = 2/5+nabla_inc   # Temperature gradient for convection
 
-    p         = 1e-3            # Variable time step parameter
+    p = 1e-2           # Variable time step parameter
 
 
     def __init__(self,xmax=12e6,nx=300,ymax=4e6,ny=100,initialise=True):
@@ -53,6 +53,8 @@ class convection2D:
         if initialise:
             self.initialise()
 
+        self.forced_dt = 0
+
     def initialise(self):
         """
         Initialise main parameters in 2D arrays:
@@ -66,6 +68,7 @@ class convection2D:
         self.e   = np.zeros((self.ny,self.nx))
         self.u   = np.zeros((self.ny,self.nx))
         self.w   = np.zeros((self.ny,self.nx))
+        #self.w[int(self.ny/2),:] = 1e3
 
         ## Initial values:
         beta_0 = Sun.T_photo/self.factor/self.g_y
@@ -82,6 +85,14 @@ class convection2D:
         """
         hydrodynamic equations solver
         """
+        # Unpack names
+        rho = self.rho
+        e = self.e 
+        w = self.w
+        u = self.u
+        rhow = rho*w 
+        rhou = rho*u
+
         # Find flow directions:
         flow = self.get_flow_directions() # [u_pos,u_neg,w_pos,w_neg]
         
@@ -122,18 +133,27 @@ class convection2D:
         self.dedt = - self.e*(dudx_cent+dwdy_cent) - self.u*dedx_up_u - self.w*dedy_up_w\
                  - self.P*(dudx_cent+dwdy_cent)
 
-        # Find optimal dt
+        # Find optimal dt and evolve primary variables
         dt = self.get_timestep()
+        # print('\n')
+        # print(np.argmin(np.abs(self.rho)))
+        # print('\n')
+        self.rho = self.rho + self.drhodt*dt
+        # print('\n')
+        # print(np.argmin(self.rho),self.rho.shape)
+        # print('\n')
+        self.e   = self.e + self.dedt*dt
+        self.u   = (rhou+self.drhoudt*dt)/self.rho
+        self.w   = (rhow+self.drhowdt*dt)/self.rho
 
         # Apply boundary conditions before calculating temperature and pressure
         self.set_boundary_conditions()
         self.P = (self.gamma-1)*self.e 
         self.T = (self.gamma-1)*self.factor*self.e/self.rho
 
+        #print('\n max w {:3f} \n'.format(np.max(np.abs(self.w))))
+
         return dt
-
-
-
     # ------------------------------------------------------------------------ #
     # ------------------------ GETTERS & SETTERS ----------------------------- #
 
@@ -141,20 +161,24 @@ class convection2D:
         """
         return optimal timestep
         """     
-        max_rel_rho = np.max(np.abs(self.drhodt/self.rho))
-        max_rel_e   = np.max(np.abs(self.dedt/self.e))
-        max_rel_x   = np.max(np.abs(self.u/self.delta_x))
-        max_rel_y   = np.max(np.abs(self.w/self.delta_y))
+        max_rel_rho = np.nanmax(np.abs(self.drhodt/self.rho))
+        max_rel_e   = np.nanmax(np.abs(self.dedt/self.e))
+        max_rel_x   = np.nanmax(np.abs(self.u/self.delta_x))
+        max_rel_y   = np.nanmax(np.abs(self.w/self.delta_y))
 
-        delta = max(max_rel_rho,max_rel_e,max_rel_x,max_rel_y)
+        delta = np.nanmax(np.array([max_rel_rho,max_rel_e,max_rel_x,max_rel_y]))#,1e-5)
+        #print(delta)
 
         dt = self.p/delta
 
         if dt<1e-8:
             dt = 1e-8
-        elif dt>1.5:
-            dt = 1.5
-
+            self.forced_dt += 1
+        elif dt>0.1:
+            dt = 0.1
+            self.forced_dt += 1
+        # print('\n')
+        # print(dt)
         return dt
 
     def set_boundary_conditions(self):
@@ -162,7 +186,7 @@ class convection2D:
         set boundary conditions for energy, density and velocity
         """
         self.e[0,:]  = (4*self.e[1,:]-self.e[2,:])/(3-self.g_y*2*self.delta_y*self.factor/self.T[0,:])
-        self.e[-1,:] = (4*self.e[-1,:]-self.e[-2,:])/(3-self.g_y*2*self.delta_y*self.factor/self.T[-1,:])
+        self.e[-1,:] = (4*self.e[-2,:]-self.e[-3,:])/(3+self.g_y*2*self.delta_y*self.factor/self.T[-1,:])
 
         self.rho[0,:]  = (self.gamma-1)*self.factor*self.e[0,:]/self.T[0,:]
         self.rho[-1,:] = (self.gamma-1)*self.factor*self.e[-1,:]/self.T[-1,:]
@@ -171,7 +195,7 @@ class convection2D:
         self.w[-1,:] = 0
 
         self.u[0,:]  = (4*self.u[1,:]-self.u[2,:])/3
-        self.u[-1,:]  = (4*self.u[-2,:]-self.u[-3,:])/3
+        self.u[-1,:] = (4*self.u[-2,:]-self.u[-3,:])/3
 
     def get_flow_directions(self):
         """
@@ -187,7 +211,6 @@ class convection2D:
         w_neg = self.w<0
 
         return u_pos,u_neg,w_pos,w_neg
-
 
     def get_central_x(self,var):
         """ central difference scheme in x-direction on variable var """
@@ -277,15 +300,18 @@ class convection2D:
 
 if __name__ == '__main__':
     test = convection2D()
+    viz = FVis3.FluidVisualiser()
 
     if 'sanity' in sys.argv:
         test.sanity_initial_conditions()
 
     if 'viz' in sys.argv:
-        viz = FVis3.FluidVisualiser()
-        viz.save_data(60,test.hydro_solver,rho=test.rho,e=test.e,u=test.u,w=test.w,\
-                        P=test.P,T=test.T,sim_fps=1)
+        viz.save_data(120,test.hydro_solver,rho=test.rho,e=test.e,u=test.u,w=test.w,\
+                        P=test.P,T=test.T,sim_fps=1.0)
+        viz.animate_2D('w')
+        viz.animate_2D('T')
         viz.animate_2D('rho')
         viz.delete_current_data()
+        print(test.forced_dt)
 
     plt.show()  

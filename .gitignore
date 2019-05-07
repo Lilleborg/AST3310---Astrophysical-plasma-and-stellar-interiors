@@ -71,3 +71,10 @@ Project_2/scoresheet\.pdf
 Project_2/datafiles/
 
 *.gz
+*.synctex.gz
+
+*.out
+
+*.aux
+
+Project_3/python/Terminal Saved Output\.txt

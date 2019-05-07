@@ -32,12 +32,11 @@ class convection2D:
     g_y = G*Sun.M/Sun.R**2      # Gravitational acceleration
 
     gamma = 5/3                 # Degrees of freedom parameter
-    factor = mu*m_u/k_B         # Common factor used to reduse FLOPS
+    mymu_kB = mu*m_u/k_B         # Common factor used to reduse FLOPS
     nabla_inc = 1e-4            # Pertubation in nabla above adiabatic value
     nabla     = 2/5+nabla_inc   # Temperature gradient for convection
 
-    p = 1e-3           # Variable time step parameter
-
+    p = 1e-2           # Variable time step parameter
 
     def __init__(self,xmax=12e6,nx=300,ymax=4e6,ny=100,initialise=True,perturb=False):
         # Set up computational volume:
@@ -67,19 +66,42 @@ class convection2D:
         self.P   = np.zeros((self.ny,self.nx))
         self.rho = np.zeros((self.ny,self.nx))
         self.e   = np.zeros((self.ny,self.nx))
-        self.u   = np.zeros((self.ny,self.nx))
-        self.w   = np.zeros((self.ny,self.nx))
+        self.u   = np.zeros((self.ny,self.nx))  # Completely initialized
+        self.w   = np.zeros((self.ny,self.nx))  # Completely initialized
 
         # Initial values:
+        beta_0 = Sun.T_photo/self.mymu_kB/self.g_y   # Factor used in P
         if not perturb:
-            beta_0 = Sun.T_photo/self.factor/self.g_y
-            for j in range(0,self.ny):     # loop vertically
+            for j in range(0,self.ny):     # loop vertically and fill variables
                 depth_term = self.nabla*(self.y[j]-self.ymax)
-                self.T[j,:] = Sun.T_photo - self.factor*self.g_y*depth_term
+                self.T[j,:] = Sun.T_photo - self.mymu_kB*self.g_y*depth_term
                 self.P[j,:] = Sun.P_photo*((beta_0-depth_term)/beta_0)**(1/self.nabla)
             self.e = self.P/(self.gamma-1)
-            self.rho = self.e*(self.gamma-1)*self.factor/self.T
+            self.rho = self.e*(self.gamma-1)*self.mymu_kB/self.T
 
+        else:   # perturb the temperature and use it to initialize rho
+            sigma_x = 1e6
+            sigma_y = 1e6
+            mean_x = self.xmax/2
+            mean_y = self.ymax/2
+            xx,yy = np.meshgrid(self.x,self.y)
+            perturbation = np.exp(-0.5*((xx-mean_x)**2/sigma_x**2 + (yy-mean_y)**2/sigma_y**2))
+
+            for j in range(0,self.ny):  # Fill T and P as normal
+                depth_term = self.nabla*(self.y[j]-self.ymax)
+                self.T[j,:] = Sun.T_photo - self.mymu_kB*self.g_y*depth_term
+                self.P[j,:] = Sun.P_photo*((beta_0-depth_term)/beta_0)**(1/self.nabla)
+            # # Perturbation:
+            # mean = [int(self.xmax/2),int(self.ymax/2)]  # Place blob in center
+            # # covariance for spherical perturbation based on temp at surface
+            # cov = [[Sun.T_photo*0.1,0],[0,Sun.T_photo*0.1]]
+            # perturbation = np.random.multivariate_normal(mean,cov,self.T.shape)
+            # print(perturbation.shape)
+            self.T +=   Sun.T_photo*perturbation   # Adding gaussian perturbation
+
+            # Update e and rho as usual, with perturbed T (in rho)
+            self.e = self.P/(self.gamma-1)
+            self.rho = self.e*(self.gamma-1)*self.mymu_kB/self.T            
 
     # ------------------------------------------------------------------------ #
     # ------------------------------- SOLVER --------------------------------- #
@@ -147,7 +169,7 @@ class convection2D:
         # Apply boundary conditions before calculating temperature and pressure
         self.set_boundary_conditions()
         self.P[:,:] = (self.gamma-1)*e 
-        self.T[:,:] = (self.gamma-1)*self.factor*e/rho
+        self.T[:,:] = (self.gamma-1)*self.mymu_kB*e/rho
 
         return dt
     # ------------------------------------------------------------------------ #
@@ -185,12 +207,12 @@ class convection2D:
         Set vertical boundary conditions for energy, density and velocity
         """
         self.e[0,:]  = (4*self.e[1,:]-self.e[2,:])\
-                        /(3-self.g_y*2*self.delta_y*self.factor/self.T[0,:])
+                        /(3-self.g_y*2*self.delta_y*self.mymu_kB/self.T[0,:])
         self.e[-1,:] = (4*self.e[-2,:]-self.e[-3,:])\
-                        /(3+self.g_y*2*self.delta_y*self.factor/self.T[-1,:])
+                        /(3+self.g_y*2*self.delta_y*self.mymu_kB/self.T[-1,:])
 
-        self.rho[0,:]  = (self.gamma-1)*self.factor*self.e[0,:]/self.T[0,:]
-        self.rho[-1,:] = (self.gamma-1)*self.factor*self.e[-1,:]/self.T[-1,:]
+        self.rho[0,:]  = (self.gamma-1)*self.mymu_kB*self.e[0,:]/self.T[0,:]
+        self.rho[-1,:] = (self.gamma-1)*self.mymu_kB*self.e[-1,:]/self.T[-1,:]
 
         self.w[0,:]  = 0
         self.w[-1,:] = 0
@@ -326,11 +348,14 @@ if __name__ == '__main__':
         viz.delete_current_data()
 
     if 'viz' in sys.argv:
+        BoX.initialise(perturb=True)
         viz.save_data(300,BoX.hydro_solver,rho=BoX.rho,e=BoX.e,u=BoX.u,w=BoX.w,\
-                        P=BoX.P,T=BoX.T,sim_fps=1.0)
-        viz.animate_2D('w',save=True)
+                        P=BoX.P,T=BoX.T,sim_fps=0.2)
+        #viz.animate_2D('w',save=True)
+        viz.animate_2D('T',save=True)
         
         viz.delete_current_data()
         print(BoX.forced_dt)
+
     if 'show' in sys.argv[-1]:
         plt.show()  

@@ -57,9 +57,10 @@ class convection2D:
 
     def initialise(self,perturb=False):
         """
-        Initialise main parameters in 2D arrays:
-        temperature, pressure, density and internal energy
-        also vertical and horizontal velocities w and u
+        Initialise parameters in 2D arrays;
+        temperature, pressure, density, internal energy, vertical and horizontal
+        velocities w and u.
+        @ perturb - if True apply gaussian perturbation in temperature
         """
         # Set up arrays
         self.T   = np.zeros((self.ny,self.nx))
@@ -69,14 +70,16 @@ class convection2D:
         self.u   = np.zeros((self.ny,self.nx))
         self.w   = np.zeros((self.ny,self.nx))
 
-        ## Initial values:
-        beta_0 = Sun.T_photo/self.factor/self.g_y
-        for j in range(0,self.ny):     # loop vertically
-            depth_term = self.nabla*(self.y[j]-self.ymax)
-            self.T[j,:] = Sun.T_photo - self.factor*self.g_y*depth_term
-            self.P[j,:] = Sun.P_photo*((beta_0-depth_term)/beta_0)**(1/self.nabla)
-            self.e[j,:] = self.P[j,:]/(self.gamma-1)
-            self.rho[j,:] = self.e[j,:]*(self.gamma-1)*self.factor/self.T[j,:]
+        # Initial values:
+        if not perturb:
+            beta_0 = Sun.T_photo/self.factor/self.g_y
+            for j in range(0,self.ny):     # loop vertically
+                depth_term = self.nabla*(self.y[j]-self.ymax)
+                self.T[j,:] = Sun.T_photo - self.factor*self.g_y*depth_term
+                self.P[j,:] = Sun.P_photo*((beta_0-depth_term)/beta_0)**(1/self.nabla)
+            self.e = self.P/(self.gamma-1)
+            self.rho = self.e*(self.gamma-1)*self.factor/self.T
+
 
     # ------------------------------------------------------------------------ #
     # ------------------------------- SOLVER --------------------------------- #
@@ -305,13 +308,15 @@ if __name__ == '__main__':
     BoX = convection2D()
     viz = FVis3.FluidVisualiser()
 
-    if 'sanity' in sys.argv:
-        BoX.sanity_initial_conditions() # Quick check used during implementation
+    if 'init_sanity' in sys.argv:
+        # Quick check used during implementation of initial conditions
+        BoX.sanity_initial_conditions()
 
+    if 'sanity' in sys.argv:
         viz.save_data(60,BoX.hydro_solver,rho=BoX.rho,e=BoX.e,u=BoX.u,w=BoX.w,\
                         P=BoX.P,T=BoX.T,sim_fps=1.0)
 
-        if 'save' in sys.argv:
+        if 'save' in sys.argv[-2:]:
             viz.animate_2D('T',save=True,video_name='sanity_T')
             viz.animate_2D('P',save=True,video_name='sanity_P')
             viz.animate_2D('rho',save=True,video_name='sanity_rho')
@@ -327,5 +332,5 @@ if __name__ == '__main__':
         
         viz.delete_current_data()
         print(BoX.forced_dt)
-
-    plt.show()  
+    if 'show' in sys.argv[-1]:
+        plt.show()  

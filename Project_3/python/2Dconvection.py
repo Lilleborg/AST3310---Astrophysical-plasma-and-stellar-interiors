@@ -17,7 +17,7 @@ import Solar_parameters as Sun  # Holding different given parameters for the Sun
 # Plotting style
 plt.style.use('bmh')
 #plt.matplotlib.rc('text', usetex=True)
-mpl.rcParams['figure.figsize'] = (14,8)
+#mpl.rcParams['figure.figsize'] = (14,8)
 mpl.rcdefaults()
 
 class convection2D:
@@ -36,10 +36,10 @@ class convection2D:
     nabla_inc = 1e-4            # Pertubation in nabla above adiabatic value
     nabla     = 2/5+nabla_inc   # Temperature gradient for convection
 
-    p = 1e-2           # Variable time step parameter
+    p = 1e-3           # Variable time step parameter
 
 
-    def __init__(self,xmax=12e6,nx=300,ymax=4e6,ny=100,initialise=True):
+    def __init__(self,xmax=12e6,nx=300,ymax=4e6,ny=100,initialise=True,perturb=False):
         # Set up computational volume:
         self.xmax = xmax    # range of x [m]
         self.ymax = ymax    # range of y [m]
@@ -51,11 +51,11 @@ class convection2D:
         self.delta_x = np.abs(self.x[0]-self.x[1])  # size of cell, x-direction
 
         if initialise:
-            self.initialise()
+            self.initialise(perturb=perturb)
 
         self.forced_dt = 0
 
-    def initialise(self):
+    def initialise(self,perturb=False):
         """
         Initialise main parameters in 2D arrays:
         temperature, pressure, density and internal energy
@@ -68,7 +68,6 @@ class convection2D:
         self.e   = np.zeros((self.ny,self.nx))
         self.u   = np.zeros((self.ny,self.nx))
         self.w   = np.zeros((self.ny,self.nx))
-        #self.w[int(self.ny/2),:] = 1e3
 
         ## Initial values:
         beta_0 = Sun.T_photo/self.factor/self.g_y
@@ -92,58 +91,60 @@ class convection2D:
         u = self.u
         rhow = rho*w 
         rhou = rho*u
+        P = self.P 
+        T = self.T
 
         # Find flow directions:
         flow = self.get_flow_directions() # [u_pos,u_neg,w_pos,w_neg]
         
         ## Find time-differentials of each primary variable:
         # Density:
-        dudx_cent    = self.get_central_x(self.u)
-        dwdy_cent    = self.get_central_y(self.w)
-        drhodx_up_u  = self.get_upwind_x(self.rho,flow[0],flow[1])
-        drhody_up_w  = self.get_upwind_y(self.rho,flow[2],flow[3])
+        cent_ddx_u    = self.get_central_x(u)
+        cent_ddy_w    = self.get_central_y(w)
+        up_u_ddx_rho  = self.get_upwind_x(rho,flow[0],flow[1])
+        up_w_ddy_rho  = self.get_upwind_y(rho,flow[2],flow[3])
 
-        self.drhodt  = - self.rho*(dudx_cent+dwdy_cent) - self.u*drhodx_up_u\
-                    - self.w*drhody_up_w
+        self.ddt_rho  = - rho*(cent_ddx_u+cent_ddy_w) - u*up_u_ddx_rho\
+                         - w*up_w_ddy_rho
 
         # Horizontal momentum:
-        dudx_up_u    = self.get_upwind_x(self.u,flow[0],flow[1])
-        dwdy_up_u    = self.get_upwind_y(self.w,flow[0],flow[1])
-        drhoudx_up_u = self.get_upwind_x(self.rho*self.u,flow[0],flow[1])
-        drhoudy_up_w = self.get_upwind_y(self.rho*self.u,flow[2],flow[3])
-        dPdx_cent    = self.get_central_x(self.P)
+        up_u_ddx_u    = self.get_upwind_x(u,flow[0],flow[1])
+        up_u_ddy_w    = self.get_upwind_y(w,flow[0],flow[1])
+        up_u_ddx_rhou = self.get_upwind_x(rhou,flow[0],flow[1])
+        up_w_ddy_rhou = self.get_upwind_y(rhou,flow[2],flow[3])
+        cent_ddx_P    = self.get_central_x(P)
 
-        self.drhoudt = - self.rho*self.u*(dudx_up_u + dwdy_up_u) - self.u*drhoudx_up_u\
-                    - self.w*drhoudy_up_w - dPdx_cent
+        self.ddt_rhou = - rhou*(up_u_ddx_u + up_u_ddy_w) - u*up_u_ddx_rhou\
+                         - w*up_w_ddy_rhou - cent_ddx_P
 
         # Vertical momentum:
-        dwdy_up_w    = self.get_upwind_y(self.w,flow[2],flow[3])
-        dudx_up_w    = self.get_upwind_x(self.u,flow[2],flow[3])
-        drhowdy_up_w = self.get_upwind_y(self.w*self.rho,flow[2],flow[3])
-        drhowdx_up_u = self.get_upwind_x(self.w*self.rho,flow[0],flow[1])
-        dPdy_cent    = self.get_central_y(self.P)
+        up_w_ddy_w    = self.get_upwind_y(w,flow[2],flow[3])
+        up_w_ddx_u    = self.get_upwind_x(u,flow[2],flow[3])
+        up_w_ddy_rhow = self.get_upwind_y(rhow,flow[2],flow[3])
+        up_u_ddx_rhow = self.get_upwind_x(rhow,flow[0],flow[1])
+        cent_ddy_P    = self.get_central_y(P)
 
-        self.drhowdt = - self.rho*self.w*(dwdy_up_w + dudx_up_w) - self.w*(drhowdy_up_w)\
-                    - self.u*drhowdx_up_u - dPdy_cent - self.rho*self.g_y
+        self.ddt_rhow = - rhow*(up_w_ddy_w + up_w_ddx_u) - w*(up_w_ddy_rhow)\
+                         - u*up_u_ddx_rhow - cent_ddy_P - rho*self.g_y
 
         # Energy:
-        dedx_up_u = self.get_upwind_x(self.e,flow[0],flow[1])
-        dedy_up_w = self.get_upwind_y(self.e,flow[2],flow[3])
+        up_u_ddx_e = self.get_upwind_x(e,flow[0],flow[1])
+        up_w_ddy_e = self.get_upwind_y(e,flow[2],flow[3])
 
-        self.dedt = - self.e*(dudx_cent+dwdy_cent) - self.u*dedx_up_u - self.w*dedy_up_w\
-                 - self.P*(dudx_cent+dwdy_cent)
+        self.ddt_e = - e*(cent_ddx_u+cent_ddy_w) - u*up_u_ddx_e - w*up_w_ddy_e\
+                      - P*(cent_ddx_u+cent_ddy_w)
 
         # Find optimal dt and evolve primary variables
         dt = self.get_timestep()
-        self.rho[:,:] = self.rho + self.drhodt*dt
-        self.e[:,:]   = self.e + self.dedt*dt
-        self.u[:,:]   = (rhou+self.drhoudt*dt)/self.rho
-        self.w[:,:]   = (rhow+self.drhowdt*dt)/self.rho
+        self.rho[:,:] = rho + self.ddt_rho*dt
+        self.e[:,:]   = e + self.ddt_e*dt
+        self.u[:,:]   = (rhou+self.ddt_rhou*dt)/rho
+        self.w[:,:]   = (rhow+self.ddt_rhow*dt)/rho
 
         # Apply boundary conditions before calculating temperature and pressure
         self.set_boundary_conditions()
-        self.P[:,:] = (self.gamma-1)*self.e 
-        self.T[:,:] = (self.gamma-1)*self.factor*self.e/self.rho
+        self.P[:,:] = (self.gamma-1)*e 
+        self.T[:,:] = (self.gamma-1)*self.factor*e/rho
 
         return dt
     # ------------------------------------------------------------------------ #
@@ -151,34 +152,39 @@ class convection2D:
 
     def get_timestep(self):
         """
-        return optimal timestep
+        Get optimal timestep based on max relative change in primary variables
+        If dt is too low or too high force it to a min/max value
         """     
-        max_rel_rho = np.nanmax(np.abs(self.drhodt/self.rho))
-        max_rel_e   = np.nanmax(np.abs(self.dedt/self.e))
+        # Max relative changes in each variable:
+        max_rel_rho = np.nanmax(np.abs(self.ddt_rho/self.rho))
+        max_rel_e   = np.nanmax(np.abs(self.ddt_e/self.e))
         max_rel_x   = np.nanmax(np.abs(self.u/self.delta_x))
         max_rel_y   = np.nanmax(np.abs(self.w/self.delta_y))
 
-        delta = np.nanmax(np.array([max_rel_rho,max_rel_e,max_rel_x,max_rel_y]))#,1e-5)
-        #print(delta)
+        # Max relative change of all variables:
+        # Included 1e-5 to remove cases where delta = 0
+        delta = np.nanmax(np.array([max_rel_rho,max_rel_e,max_rel_x,max_rel_y,1e-5]))
 
-        dt = self.p/delta
+        dt = self.p/delta   # Optimal dt based on max relative change
 
+        # Forced min/max dt, track nr of forced cases
         if dt<1e-8:
             dt = 1e-8
             self.forced_dt += 1
         elif dt>0.1:
             dt = 0.1
             self.forced_dt += 1
-        # print('\n')
-        # print(dt)
+
         return dt
 
     def set_boundary_conditions(self):
         """
-        set boundary conditions for energy, density and velocity
+        Set vertical boundary conditions for energy, density and velocity
         """
-        self.e[0,:]  = (4*self.e[1,:]-self.e[2,:])/(3-self.g_y*2*self.delta_y*self.factor/self.T[0,:])
-        self.e[-1,:] = (4*self.e[-2,:]-self.e[-3,:])/(3+self.g_y*2*self.delta_y*self.factor/self.T[-1,:])
+        self.e[0,:]  = (4*self.e[1,:]-self.e[2,:])\
+                        /(3-self.g_y*2*self.delta_y*self.factor/self.T[0,:])
+        self.e[-1,:] = (4*self.e[-2,:]-self.e[-3,:])\
+                        /(3+self.g_y*2*self.delta_y*self.factor/self.T[-1,:])
 
         self.rho[0,:]  = (self.gamma-1)*self.factor*self.e[0,:]/self.T[0,:]
         self.rho[-1,:] = (self.gamma-1)*self.factor*self.e[-1,:]/self.T[-1,:]
@@ -192,29 +198,36 @@ class convection2D:
     def get_flow_directions(self):
         """
         Calculates flow directions
-        Returns four 2D boolean arrays with the direction of the flow,
+        Returns four 2D boolean arrays with indices for the direction of the flow,
         to be used in upwind differencing.
         """
         u_pos = self.u>=0    # Boolean array for positive horizontal flow
         u_neg = self.u<0     # Negative flow
 
-        # Vertical:
+        # Same for the vertical:
         w_pos = self.w>=0
         w_neg = self.w<0
 
         return u_pos,u_neg,w_pos,w_neg
 
     def get_central_x(self,var):
-        """ central difference scheme in x-direction on variable var """
+        """ 
+        Central difference scheme in x-direction with periodic horizontal boundary
+        @ var - variable to differentiate
+        """
         return (np.roll(var,-1,axis=1)-np.roll(var,1,axis=1))/(2*self.delta_x)
 
     def get_central_y(self,var):
-        """ central difference scheme in y-direction on variable var """
+        """ 
+        Central difference scheme in y-direction with periodic vertical boundary
+        (vertical boundary is controlled in self.set_boundary_conditions())
+        @ var - variable to differentiate
+        """
         return (np.roll(var,-1,axis=0)-np.roll(var,1,axis=0))/(2*self.delta_y)
 
     def get_upwind_x(self,var,pos_id,neg_id):
         """
-        Upwind difference scheme in x-direction
+        Upwind difference scheme in x-direction with periodic horizontal boundary
         @ var - variable to differentiate
         @ pos_id - indices for positive upwind differencing (positive flow)
         @ neg_id - indices for negative upwind differencing (negative flow)
@@ -225,7 +238,7 @@ class convection2D:
 
         res = np.zeros((self.ny,self.nx))   # resulting array with differential
 
-        diff_pos = (var-np.roll(var,1,axis=1))/self.delta_x # if positive flow
+        diff_pos = (var-np.roll(var,1,axis=1))/self.delta_x  # if positive flow
         diff_neg = (np.roll(var,-1,axis=1)-var)/self.delta_x # if negative flow
 
         # Filling resulting array with appropiate differentials
@@ -236,7 +249,7 @@ class convection2D:
 
     def get_upwind_y(self,var,pos_id,neg_id):
         """
-        Upwind difference scheme in y-direction
+        Upwind difference scheme in y-direction with periodic vertical boundary
         @ var - variable to differentiate
         @ pos_id - indices for positive upwind differencing (positive flow)
         @ neg_id - indices for negative upwind differencing (negative flow)
@@ -247,7 +260,7 @@ class convection2D:
 
         res = np.zeros((self.ny,self.nx))   # resulting array with differential
 
-        diff_pos = (var-np.roll(var,1,axis=0))/self.delta_y # if positive flow
+        diff_pos = (var-np.roll(var,1,axis=0))/self.delta_y  # if positive flow
         diff_neg = (np.roll(var,-1,axis=0)-var)/self.delta_y # if negative flow
 
         # Filling resulting array with appropiate differentials
@@ -262,10 +275,10 @@ class convection2D:
     def sanity_initial_conditions(self):
         """ Simple sanity test to check the initial vertical gradients """
 
-        T1D = self.T[:,0]
-        P1D = self.P[:,0]
-        e1D = self.e[:,0]
-        rho1D = self.rho[:,0]
+        T1D = self.T[:,int(self.nx/2)]
+        P1D = self.P[:,int(self.nx/2)]
+        e1D = self.e[:,int(self.nx/2)]
+        rho1D = self.rho[:,int(self.nx/2)]
         y = self.y
 
         fig, ax = plt.subplots(2,2,sharey='all')
@@ -288,21 +301,31 @@ class convection2D:
         ax[1,1].set_xlabel(r'$\rho [kg m^{-3}]$')
         ax[1,1].plot(rho1D,y)
 
-        plt.show()
-
 if __name__ == '__main__':
-    test = convection2D()
+    BoX = convection2D()
     viz = FVis3.FluidVisualiser()
 
     if 'sanity' in sys.argv:
-        test.sanity_initial_conditions()
+        BoX.sanity_initial_conditions() # Quick check used during implementation
 
-    if 'viz' in sys.argv:
-        viz.save_data(300,test.hydro_solver,rho=test.rho,e=test.e,u=test.u,w=test.w,\
-                        P=test.P,T=test.T,sim_fps=1.0)
-        viz.animate_2D('w')
+        viz.save_data(60,BoX.hydro_solver,rho=BoX.rho,e=BoX.e,u=BoX.u,w=BoX.w,\
+                        P=BoX.P,T=BoX.T,sim_fps=1.0)
+
+        if 'save' in sys.argv:
+            viz.animate_2D('T',save=True,video_name='sanity_T')
+            viz.animate_2D('P',save=True,video_name='sanity_P')
+            viz.animate_2D('rho',save=True,video_name='sanity_rho')
+        else:
+            viz.animate_2D('w')
         
         viz.delete_current_data()
-        print(test.forced_dt)
+
+    if 'viz' in sys.argv:
+        viz.save_data(300,BoX.hydro_solver,rho=BoX.rho,e=BoX.e,u=BoX.u,w=BoX.w,\
+                        P=BoX.P,T=BoX.T,sim_fps=1.0)
+        viz.animate_2D('w',save=True)
+        
+        viz.delete_current_data()
+        print(BoX.forced_dt)
 
     plt.show()  

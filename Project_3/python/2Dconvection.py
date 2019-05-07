@@ -135,23 +135,15 @@ class convection2D:
 
         # Find optimal dt and evolve primary variables
         dt = self.get_timestep()
-        # print('\n')
-        # print(np.argmin(np.abs(self.rho)))
-        # print('\n')
-        self.rho = self.rho + self.drhodt*dt
-        # print('\n')
-        # print(np.argmin(self.rho),self.rho.shape)
-        # print('\n')
-        self.e   = self.e + self.dedt*dt
-        self.u   = (rhou+self.drhoudt*dt)/self.rho
-        self.w   = (rhow+self.drhowdt*dt)/self.rho
+        self.rho[:,:] = self.rho + self.drhodt*dt
+        self.e[:,:]   = self.e + self.dedt*dt
+        self.u[:,:]   = (rhou+self.drhoudt*dt)/self.rho
+        self.w[:,:]   = (rhow+self.drhowdt*dt)/self.rho
 
         # Apply boundary conditions before calculating temperature and pressure
         self.set_boundary_conditions()
-        self.P = (self.gamma-1)*self.e 
-        self.T = (self.gamma-1)*self.factor*self.e/self.rho
-
-        #print('\n max w {:3f} \n'.format(np.max(np.abs(self.w))))
+        self.P[:,:] = (self.gamma-1)*self.e 
+        self.T[:,:] = (self.gamma-1)*self.factor*self.e/self.rho
 
         return dt
     # ------------------------------------------------------------------------ #
@@ -306,11 +298,10 @@ if __name__ == '__main__':
         test.sanity_initial_conditions()
 
     if 'viz' in sys.argv:
-        viz.save_data(120,test.hydro_solver,rho=test.rho,e=test.e,u=test.u,w=test.w,\
+        viz.save_data(300,test.hydro_solver,rho=test.rho,e=test.e,u=test.u,w=test.w,\
                         P=test.P,T=test.T,sim_fps=1.0)
         viz.animate_2D('w')
-        viz.animate_2D('T')
-        viz.animate_2D('rho')
+        
         viz.delete_current_data()
         print(test.forced_dt)
 

@@ -6,6 +6,7 @@ from numpy import pi as pi
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+from math import ceil
 #from datetime import datetime
 
 import sys
@@ -48,17 +49,20 @@ class convection2D:
         self.x = np.linspace(0,xmax,nx) # Computational volume, x-direction
         self.delta_y = np.abs(self.y[0]-self.y[1])  # size of cell, y-direction
         self.delta_x = np.abs(self.x[0]-self.x[1])  # size of cell, x-direction
-
         if initialise:
             self.initialise(perturb=perturb)
 
         self.forced_dt = 0
-
-    def initialise(self,perturb=False):
+        
+    def initialise(self,perturb=False,nr=3):
         """
         Initialise parameters in 2D arrays;
-        temperature, pressure, density, internal energy, vertical and horizontal
-        velocities w and u.
+        T - temperature,
+        P - pressure,
+        rho - density,
+        e - internal energy,
+        u & w - vertical & horizontal velocities.
+
         @ perturb - if True apply gaussian perturbation in temperature
         """
         # Set up arrays
@@ -70,38 +74,17 @@ class convection2D:
         self.w   = np.zeros((self.ny,self.nx))  # Completely initialized
 
         # Initial values:
-        beta_0 = Sun.T_photo/self.mymu_kB/self.g_y   # Factor used in P
-        if not perturb:
-            for j in range(0,self.ny):     # loop vertically and fill variables
-                depth_term = self.nabla*(self.y[j]-self.ymax)
-                self.T[j,:] = Sun.T_photo - self.mymu_kB*self.g_y*depth_term
-                self.P[j,:] = Sun.P_photo*((beta_0-depth_term)/beta_0)**(1/self.nabla)
-            self.e = self.P/(self.gamma-1)
-            self.rho = self.e*(self.gamma-1)*self.mymu_kB/self.T
+        beta_0 = Sun.T_photo/self.mymu_kB/self.g_y   # Factor used in P    
+        for j in range(0,self.ny):     # loop vertically and fill variables
+            depth_term = self.nabla*(self.y[j]-self.ymax)
+            self.T[j,:] = Sun.T_photo - self.mymu_kB*self.g_y*depth_term
+            self.P[j,:] = Sun.P_photo*((beta_0-depth_term)/beta_0)**(1/self.nabla)
 
-        else:   # perturb the temperature and use it to initialize rho
-            sigma_x = 1e6
-            sigma_y = 1e6
-            mean_x = self.xmax/2
-            mean_y = self.ymax/2
-            xx,yy = np.meshgrid(self.x,self.y)
-            perturbation = np.exp(-0.5*((xx-mean_x)**2/sigma_x**2 + (yy-mean_y)**2/sigma_y**2))
-
-            for j in range(0,self.ny):  # Fill T and P as normal
-                depth_term = self.nabla*(self.y[j]-self.ymax)
-                self.T[j,:] = Sun.T_photo - self.mymu_kB*self.g_y*depth_term
-                self.P[j,:] = Sun.P_photo*((beta_0-depth_term)/beta_0)**(1/self.nabla)
-            # # Perturbation:
-            # mean = [int(self.xmax/2),int(self.ymax/2)]  # Place blob in center
-            # # covariance for spherical perturbation based on temp at surface
-            # cov = [[Sun.T_photo*0.1,0],[0,Sun.T_photo*0.1]]
-            # perturbation = np.random.multivariate_normal(mean,cov,self.T.shape)
-            # print(perturbation.shape)
-            self.T +=   Sun.T_photo*perturbation   # Adding gaussian perturbation
-
-            # Update e and rho as usual, with perturbed T (in rho)
-            self.e = self.P/(self.gamma-1)
-            self.rho = self.e*(self.gamma-1)*self.mymu_kB/self.T            
+        if perturb: # Perturb initial temerature
+            self.set_perturbation(nr=nr)
+        # Using pressure and (possibly perturbed) temperature to init e and rho
+        self.e = self.P/(self.gamma-1)
+        self.rho = self.e*(self.gamma-1)*self.mymu_kB/self.T    
 
     # ------------------------------------------------------------------------ #
     # ------------------------------- SOLVER --------------------------------- #
@@ -109,7 +92,7 @@ class convection2D:
         """
         hydrodynamic equations solver
         """
-        # Unpack names
+        # Unpack names for easier reading and compact lines
         rho = self.rho
         e = self.e 
         w = self.w
@@ -174,6 +157,25 @@ class convection2D:
         return dt
     # ------------------------------------------------------------------------ #
     # ------------------------ GETTERS & SETTERS ----------------------------- #
+    def set_perturbation(self,nr=1):
+        """
+        Create gaussian perturbations in the initial temperature distribution
+        @ nr - number of perturbation "blobs" (experimental above default nr = 1)
+        """
+        nr *= 2
+        x_position = np.arange(1,nr,2)*1/nr     # x position of blobs
+        alt_sign = np.ones(ceil(nr/2))
+        alt_sign[0::2] = -1
+        
+        sigma_x = 1e6
+        sigma_y = 1e6
+        mean_y = self.ymax/2
+        xx,yy = np.meshgrid(self.x,self.y)
+
+        for i,scale in enumerate(x_position):
+            mean_x = self.xmax*scale
+            perturbation = np.exp(-0.5*((xx-mean_x)**2/sigma_x**2 + (yy-mean_y)**2/sigma_y**2))
+            self.T += 0.7*Sun.T_photo*perturbation*alt_sign[i]
 
     def get_timestep(self):
         """
@@ -193,8 +195,8 @@ class convection2D:
         dt = self.p/delta   # Optimal dt based on max relative change
 
         # Forced min/max dt, track nr of forced cases
-        if dt<1e-8:
-            dt = 1e-8
+        if dt<1e-7:
+            dt = 1e-7
             self.forced_dt += 1
         elif dt>0.1:
             dt = 0.1
@@ -327,14 +329,14 @@ class convection2D:
         ax[1,1].plot(rho1D,y)
 
 if __name__ == '__main__':
-    BoX = convection2D()
+    BoX = convection2D(initialise=False)
     viz = FVis3.FluidVisualiser()
 
-    if 'init_sanity' in sys.argv:
-        # Quick check used during implementation of initial conditions
-        BoX.sanity_initial_conditions()
-
     if 'sanity' in sys.argv:
+        if 'init_sanity' in sys.argv:
+            # Quick check used during implementation of initial conditions
+            BoX.sanity_initial_conditions()
+
         viz.save_data(60,BoX.hydro_solver,rho=BoX.rho,e=BoX.e,u=BoX.u,w=BoX.w,\
                         P=BoX.P,T=BoX.T,sim_fps=1.0)
 
@@ -342,20 +344,26 @@ if __name__ == '__main__':
             viz.animate_2D('T',save=True,video_name='sanity_T')
             viz.animate_2D('P',save=True,video_name='sanity_P')
             viz.animate_2D('rho',save=True,video_name='sanity_rho')
+            viz.animate_2D('u',save=True,video_name='sanity_u')
+            viz.animate_2D('w',save=True,video_name='sanity_w')
         else:
             viz.animate_2D('w')
         
         viz.delete_current_data()
 
     if 'viz' in sys.argv:
-        BoX.initialise(perturb=True)
+        nr = 5
+        BoX.initialise(perturb=True,nr = nr)
         viz.save_data(300,BoX.hydro_solver,rho=BoX.rho,e=BoX.e,u=BoX.u,w=BoX.w,\
-                        P=BoX.P,T=BoX.T,sim_fps=0.2)
-        #viz.animate_2D('w',save=True)
-        viz.animate_2D('T',save=True)
-        
-        viz.delete_current_data()
-        print(BoX.forced_dt)
+                        P=BoX.P,T=BoX.T,sim_fps=0.8)
 
+        if 'save' in sys.argv[-2:]:
+            viz.animate_2D('T',save=True,video_fps=15,video_name='looong_T_nr5')
+        else:
+            viz.animate_2D('T')
+
+        viz.delete_current_data()
+        print('Forced number of dt', BoX.forced_dt)
+        
     if 'show' in sys.argv[-1]:
         plt.show()  

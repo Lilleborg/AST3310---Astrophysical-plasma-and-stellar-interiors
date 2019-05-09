@@ -1410,7 +1410,7 @@ class FluidVisualiser:
 
             if self.dim == 2:
 
-                ax.text(0.005, 1.005, 'Nx = {:d}, Nz = {:d}'.format(self.Nx, self.Nz), color='k', fontsize=self.fontsize, horizontalalignment='left', 
+                ax.text(0.005, 1.005, 'Nx = {:d}, Ny = {:d}'.format(self.Nx, self.Nz), color='k', fontsize=self.fontsize, horizontalalignment='left', 
                                                                                verticalalignment='bottom', transform=ax.transAxes)
 
             elif self.dim == 1:

@@ -74,7 +74,7 @@ class convection2D:
         self.w   = np.zeros((self.ny,self.nx))  # Completely initialized
 
         # Initial values:
-        beta_0 = Sun.T_photo/self.mymu_kB/self.g_y   # Factor used in P    
+        beta_0 = Sun.T_photo/self.mymu_kB/self.g_y   # Substitution used in P    
         for j in range(0,self.ny):     # loop vertically and fill variables
             depth_term = self.nabla*(self.y[j]-self.ymax)
             self.T[j,:] = Sun.T_photo - self.mymu_kB*self.g_y*depth_term
@@ -164,17 +164,20 @@ class convection2D:
         """
         nr *= 2
         x_position = np.arange(1,nr,2)*1/nr     # x position of blobs
-        alt_sign = np.ones(ceil(nr/2))
-        alt_sign[0::2] = -1
+        alt_sign = np.ones(ceil(nr/2)) # array with alternating signs
+                                       # to get neg and pos perturbations
+        if nr != 2:                    # if more than one blob
+            alt_sign[0::2] = -1
         
-        sigma_x = 1e6
+        sigma_x = 1e6   # Equal standard deviations for circular blobs
         sigma_y = 1e6
-        mean_y = self.ymax/2
-        xx,yy = np.meshgrid(self.x,self.y)
+        mean_y = self.ymax/2    # Place blobs in the midle vertically
+        xx,yy = np.meshgrid(self.x,self.y)  # simple mesh of computational volume
 
-        for i,scale in enumerate(x_position):
-            mean_x = self.xmax*scale
-            perturbation = np.exp(-0.5*((xx-mean_x)**2/sigma_x**2 + (yy-mean_y)**2/sigma_y**2))
+        for i,scale in enumerate(x_position): # loop over nr of blobs and perturb T
+            mean_x = self.xmax*scale          # place blob according to nr
+            perturbation = np.exp(-0.5*((xx-mean_x)**2/sigma_x**2\
+                            +(yy-mean_y)**2/sigma_y**2))
             self.T += 0.7*Sun.T_photo*perturbation*alt_sign[i]
 
     def get_timestep(self):
@@ -195,11 +198,11 @@ class convection2D:
         dt = self.p/delta   # Optimal dt based on max relative change
 
         # Forced min/max dt, track nr of forced cases
-        if dt<1e-7:
+        if dt<1e-7: # Too low dt causes unstability and prolongs the calculations
             dt = 1e-7
             self.forced_dt += 1
-        elif dt>0.1:
-            dt = 0.1
+        elif dt>0.1: # Too high dt causes even more unstability 
+            dt = 0.1 # (mostly in use in the equilibrium situation)
             self.forced_dt += 1
 
         return dt
@@ -245,7 +248,7 @@ class convection2D:
         return (np.roll(var,-1,axis=1)-np.roll(var,1,axis=1))/(2*self.delta_x)
 
     def get_central_y(self,var):
-        """ 
+        """
         Central difference scheme in y-direction with periodic vertical boundary
         (vertical boundary is controlled in self.set_boundary_conditions())
         @ var - variable to differentiate
@@ -277,6 +280,7 @@ class convection2D:
     def get_upwind_y(self,var,pos_id,neg_id):
         """
         Upwind difference scheme in y-direction with periodic vertical boundary
+        (vertical boundary is controlled in self.set_boundary_conditions())
         @ var - variable to differentiate
         @ pos_id - indices for positive upwind differencing (positive flow)
         @ neg_id - indices for negative upwind differencing (negative flow)
@@ -327,43 +331,76 @@ class convection2D:
         ax[1,1].set_title('Density')
         ax[1,1].set_xlabel(r'$\rho [kg m^{-3}]$')
         ax[1,1].plot(rho1D,y)
+        plt.show()
+        plt.close('all')
 
 if __name__ == '__main__':
     BoX = convection2D(initialise=False)
-    viz = FVis3.FluidVisualiser()
+    viz = FVis3.FluidVisualiser(fontsize=16)
 
-    if 'sanity' in sys.argv:
-        if 'init_sanity' in sys.argv:
-            # Quick check used during implementation of initial conditions
-            BoX.sanity_initial_conditions()
+    if len(sys.argv)<3:
+        print('No/not enough cmd arguments!')
+        if len(sys.argv)<2:
+            print('Using basic animation configurations')
+            sys.argv.append('basic')
+        print('No specified action, defaults to animating T')
+        sys.argv.append('animate')
 
-        viz.save_data(60,BoX.hydro_solver,rho=BoX.rho,e=BoX.e,u=BoX.u,w=BoX.w,\
-                        P=BoX.P,T=BoX.T,sim_fps=1.0)
-
-        if 'save' in sys.argv[-2:]:
-            viz.animate_2D('T',save=True,video_name='sanity_T')
-            viz.animate_2D('P',save=True,video_name='sanity_P')
-            viz.animate_2D('rho',save=True,video_name='sanity_rho')
-            viz.animate_2D('u',save=True,video_name='sanity_u')
-            viz.animate_2D('w',save=True,video_name='sanity_w')
-        else:
-            viz.animate_2D('w')
-        
-        viz.delete_current_data()
-
-    if 'viz' in sys.argv:
+    if 'viz' in sys.argv:  # experiment with simulation configs
         nr = 5
-        BoX.initialise(perturb=True,nr = nr)
-        viz.save_data(300,BoX.hydro_solver,rho=BoX.rho,e=BoX.e,u=BoX.u,w=BoX.w,\
-                        P=BoX.P,T=BoX.T,sim_fps=0.8)
+        endtime = 350
+        perturb = True
+        sim_fps = 0.8
+        name_app = str(nr)+'_blobs_endtime_'+str(endtime)+'_'
+        title = '2D convection cell, '+str(nr)+' perturbations over '\
+                +str(endtime)+' seconds'
 
-        if 'save' in sys.argv[-2:]:
-            viz.animate_2D('T',save=True,video_fps=15,video_name='looong_T_nr5')
-        else:
-            viz.animate_2D('T')
+    elif 'sanity' in sys.argv:  # sanity config
+        nr = 1
+        endtime = 60
+        perturb = False
+        sim_fps = 1.0
+        name_app = 'sanity_'
+        title = '2D convection cell in hydrostatic equilibrium over '\
+                +str(endtime)+' seconds'
 
-        viz.delete_current_data()
+    elif 'basic' in sys.argv: # basic simulation config (most simple solution)
+        nr = 1 
+        endtime = 200
+        perturb = True
+        sim_fps = 1.0
+        name_app = 'basic_'
+        title = '2D convection cell, single perturbations over '\
+                +str(endtime)+' seconds'
+
+
+    if not 'load' in sys.argv:  # unless given load cmd, run save data method
+        BoX.initialise(perturb=perturb,nr=nr)
+        viz.save_data(endtime,BoX.hydro_solver,rho=BoX.rho,e=BoX.e,u=BoX.u,\
+                        w=BoX.w,P=BoX.P,T=BoX.T,sim_fps=sim_fps)
         print('Forced number of dt', BoX.forced_dt)
-        
-    if 'show' in sys.argv[-1]:
-        plt.show()  
+        folder = 'default'
+    else:
+        folder = input('Which folder to load from? ')
+
+    if 'snap' in sys.argv: # take 10 snap shots of the animation
+        snap_time = np.linspace(0,endtime,10)
+        viz.animate_2D('T',snapshots=snap_time,title=title,folder=folder)
+
+    if 'init' in sys.argv:
+        # Quick check used during implementation of initial conditions
+        BoX.sanity_initial_conditions()
+
+    if 'animate' in sys.argv:  # Produce 2D animation
+        vid_time = 10          # [s]
+        vid_fps = endtime*sim_fps/vid_time
+        var_names = ['T','P','rho','e','u','w'] # all variable names
+        if not 'all' in sys.argv:   # if all as cmd plot for EACH variable
+            var_names = var_names[0]
+        for var in var_names:
+            viz.animate_2D(var,save=True,video_name=name_app+var,title=title,\
+                            video_fps=vid_fps,units={'Lx':'Mm','Lz':'Mm'},folder=folder)
+
+
+    if not 'no_del' in sys.argv:
+        viz.delete_current_data()   

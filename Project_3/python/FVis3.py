@@ -425,7 +425,7 @@ class FluidVisualiser:
 
             if save_snaps and len(snapshots) > 0 and self.t >= snapshots[0]:
 
-                snapname = '{}_snapshot_t{:g}.png'.format(self.folder, self.t)
+                snapname = '{}_snapshot_t{:g}.pdf'.format(self.folder, self.t)
                 if self.printInfo: print('FluidVisualiser: Saving snapshot as \"{}\" ...'.format(snapname))
 
                 fig.savefig(snapname, bbox_inches='tight')
@@ -583,7 +583,7 @@ class FluidVisualiser:
 
             if save_snaps and len(snapshots) > 0 and self.t >= snapshots[0]:
 
-                snapname = '{}_snapshot_t{:g}.png'.format(self.folder, self.t)
+                snapname = '{}_snapshot_t{:g}.pdf'.format(self.folder, self.t)
                 if self.printInfo: print('FluidVisualiser: Saving snapshot as \"{}\" ...'.format(snapname))
 
                 fig.savefig(snapname, bbox_inches='tight')
@@ -691,7 +691,7 @@ class FluidVisualiser:
 
             if save_snaps and len(snapshots) > 0 and self.t >= snapshots[0]:
 
-                snapname = '{}_snapshot_t{:g}.png'.format(self.folder, self.t)
+                snapname = '{}_snapshot_flux_t{:g}.pdf'.format(self.folder, self.t)
                 if self.printInfo: print('FluidVisualiser: Saving snapshot as \"{}\" ...'.format(snapname))
 
                 fig.savefig(snapname, bbox_inches='tight')

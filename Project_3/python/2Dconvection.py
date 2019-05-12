@@ -15,10 +15,7 @@ import sys
 # from star_core import my_stellar_core
 import Solar_parameters as Sun  # Holding different given parameters for the Sun
 
-# Plotting style
-plt.style.use('bmh')
-#plt.matplotlib.rc('text', usetex=True)
-#mpl.rcParams['figure.figsize'] = (14,8)
+# Reset my own matplotlib settings:
 mpl.rcdefaults()
 
 class convection2D:
@@ -33,7 +30,7 @@ class convection2D:
     g_y = G*Sun.M/Sun.R**2      # Gravitational acceleration
 
     gamma = 5/3                 # Degrees of freedom parameter
-    mymu_kB = mu*m_u/k_B         # Common factor used to reduse FLOPS
+    mymu_kB = mu*m_u/k_B        # Common factor used to reduse number of FLOPS
     nabla_inc = 1e-4            # Pertubation in nabla above adiabatic value
     nabla     = 2/5+nabla_inc   # Temperature gradient for convection
 
@@ -45,14 +42,14 @@ class convection2D:
         self.ymax = ymax    # range of y [m]
         self.nx = nx        # nr cells in x
         self.ny = ny        # nr cells is y
-        self.y = np.linspace(0,ymax,ny) # Computational volume, y-direction 
-        self.x = np.linspace(0,xmax,nx) # Computational volume, x-direction
-        self.delta_y = np.abs(self.y[0]-self.y[1])  # size of cell, y-direction
-        self.delta_x = np.abs(self.x[0]-self.x[1])  # size of cell, x-direction
+        # 1D vertical array and size of cells, y-direction:
+        self.y,self.delta_y = np.linspace(0,ymax,ny,retstep=True)
+        # Same in horizontal direction:
+        self.x,self.delta_x = np.linspace(0,xmax,nx,retstep=True)
         if initialise:
             self.initialise(perturb=perturb)
 
-        self.forced_dt = 0
+        self.forced_dt = 0  # Used to tracked number of forced time steps
         
     def initialise(self,perturb=False,nr=3):
         """
@@ -169,8 +166,8 @@ class convection2D:
         if nr != 2:                    # if more than one blob
             alt_sign[0::2] = -1
         
-        sigma_x = 1e6   # Equal standard deviations for circular blobs
-        sigma_y = 1e6
+        sigma_x = 8e5   # Equal standard deviations for circular blobs
+        sigma_y = 8e5
         mean_y = self.ymax/2    # Place blobs in the midle vertically
         xx,yy = np.meshgrid(self.x,self.y)  # simple mesh of computational volume
 
@@ -300,7 +297,6 @@ class convection2D:
 
         return res
 
-
     # ------------------------------------------------------------------------ #
     # ------------------------------- SANITY --------------------------------- #
     def sanity_initial_conditions(self):
@@ -336,8 +332,10 @@ class convection2D:
 
 if __name__ == '__main__':
     BoX = convection2D(initialise=False)
-    viz = FVis3.FluidVisualiser(fontsize=16)
+    viz = FVis3.FluidVisualiser(fontsize=20)
 
+    # Setup simulation configurations:
+    extent = [0,BoX.xmax/1e6,0,BoX.ymax/1e6] # extent of axis in [Mm]
     if len(sys.argv)<3:
         print('No/not enough cmd arguments!')
         if len(sys.argv)<2:
@@ -348,11 +346,12 @@ if __name__ == '__main__':
 
     if 'viz' in sys.argv:  # experiment with simulation configs
         nr = 5
-        endtime = 350
+        endtime = 450
         perturb = True
         sim_fps = 0.8
         name_app = str(nr)+'_blobs_endtime_'+str(endtime)+'_'
-        title = '2D convection cell, '+str(nr)+' perturbations over '\
+        folder = 'viz_'+str(nr)+'_blobs_endtime_'+str(endtime)
+        subtitle = str(nr)+' alternating perturbations over '\
                 +str(endtime)+' seconds'
 
     elif 'sanity' in sys.argv:  # sanity config
@@ -361,46 +360,71 @@ if __name__ == '__main__':
         perturb = False
         sim_fps = 1.0
         name_app = 'sanity_'
-        title = '2D convection cell in hydrostatic equilibrium over '\
+        folder = 'sanity'
+        subtitle = 'hydrostatic equilibrium over '\
                 +str(endtime)+' seconds'
 
     elif 'basic' in sys.argv: # basic simulation config (most simple solution)
         nr = 1 
-        endtime = 200
+        endtime = 300
         perturb = True
         sim_fps = 1.0
-        name_app = 'basic_'
-        title = '2D convection cell, single perturbations over '\
+        name_app = 'basic_endtime_'+str(endtime)
+        folder = 'basic_'+str(nr)+'_blob_endtime_'+str(endtime)
+        subtitle = 'single positive perturbation over '\
                 +str(endtime)+' seconds'
 
-
+    #folder += '_lowpert'
+    # Run simulation, or load data
     if not 'load' in sys.argv:  # unless given load cmd, run save data method
         BoX.initialise(perturb=perturb,nr=nr)
         viz.save_data(endtime,BoX.hydro_solver,rho=BoX.rho,e=BoX.e,u=BoX.u,\
-                        w=BoX.w,P=BoX.P,T=BoX.T,sim_fps=sim_fps)
+                        w=BoX.w,P=BoX.P,T=BoX.T,sim_fps=sim_fps,folder=folder)
         print('Forced number of dt', BoX.forced_dt)
-        folder = 'default'
     else:
-        folder = input('Which folder to load from? ')
+        folder = input('Which folder to load data from? ')
 
-    if 'snap' in sys.argv: # take 10 snap shots of the animation
-        snap_time = np.linspace(0,endtime,10)
-        viz.animate_2D('T',snapshots=snap_time,title=title,folder=folder)
+    # Actions on simulation data; snapshots, animation, init_sanity...
+
+    if 'snap' in sys.argv: # take 20 snap shots of the animation
+        snap_time = np.linspace(0,endtime,20,endpoint=False)
+        if 'flux' in sys.argv:
+            title = 'Horizontally averaged energy flux,\n'+subtitle
+            viz.animate_energyflux(snapshots=snap_time,title=title,folder=folder,\
+                                    units={'Lx':'Mm','Lz':'Mm'},extent=extent)
+        else:
+            title = 'Snapshots of T,\n'+subtitle
+            viz.animate_2D('T',snapshots=snap_time,title=title,folder=folder,\
+                            units={'Lx':'Mm','Lz':'Mm'},extent=extent,height=8)
+        plt.close('all')
 
     if 'init' in sys.argv:
         # Quick check used during implementation of initial conditions
         BoX.sanity_initial_conditions()
 
-    if 'animate' in sys.argv:  # Produce 2D animation
+    if 'animate' in sys.argv:  # Produce 2D animation primary variables, default T
         vid_time = 10          # [s]
         vid_fps = endtime*sim_fps/vid_time
-        var_names = ['T','P','rho','e','u','w'] # all variable names
-        if not 'all' in sys.argv:   # if all as cmd plot for EACH variable
-            var_names = var_names[0]
-        for var in var_names:
-            viz.animate_2D(var,save=True,video_name=name_app+var,title=title,\
-                            video_fps=vid_fps,units={'Lx':'Mm','Lz':'Mm'},folder=folder)
 
+        if not 'all' in sys.argv:   # if all as cmd plot for EACH variable
+            var_names = ['T']
+            if 'sanity' in sys.argv: # also add w if sanity run
+                var_names.append('w')
+        else:
+            var_names = ['T','P','rho','e','u','w'] # all variable names
+        
+        if 'flux' in sys.argv:  # Animate horizontally averaged energy flux
+            if not 'flux' in title:
+                title = 'Horizontally averaged energy flux,\n'+subtitle
+            viz.animate_energyflux(save=True,video_name=name_app+'flux',title=title,\
+                                    video_fps=vid_fps,units={'Lx':'Mm','Lz':'Mm'},\
+                                    folder=folder,extent=extent)
+        else:                   # If not flux, animate primary variables
+            for var in var_names:
+                title = 'Animated '+var+', '+subtitle
+                viz.animate_2D(var,save=True,video_name=name_app+var,title=title,\
+                                video_fps=vid_fps,units={'Lx':'Mm','Lz':'Mm'},\
+                                folder=folder,extent=extent,height=7)
 
     if not 'no_del' in sys.argv:
         viz.delete_current_data()   

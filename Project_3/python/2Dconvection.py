@@ -51,7 +51,7 @@ class convection2D:
 
         self.forced_dt = 0  # Used to tracked number of forced time steps
         
-    def initialise(self,perturb=False,nr=3):
+    def initialise(self,perturb=False,nr=1):
         """
         Initialise parameters in 2D arrays;
         T - temperature,
@@ -61,6 +61,7 @@ class convection2D:
         u & w - vertical & horizontal velocities.
 
         @ perturb - if True apply gaussian perturbation in temperature
+        @ nr - number of perturbations to apply along x-axis
         """
         # Set up arrays
         self.T   = np.zeros((self.ny,self.nx))
@@ -82,7 +83,6 @@ class convection2D:
         # Using pressure and (possibly perturbed) temperature to init e and rho
         self.e = self.P/(self.gamma-1)
         self.rho = self.e*(self.gamma-1)*self.mymu_kB/self.T    
-
     # ------------------------------------------------------------------------ #
     # ------------------------------- SOLVER --------------------------------- #
     def hydro_solver(self):
@@ -143,13 +143,15 @@ class convection2D:
         dt = self.get_timestep()
         self.rho[:,:] = rho + self.ddt_rho*dt
         self.e[:,:]   = e + self.ddt_e*dt
-        self.u[:,:]   = (rhou+self.ddt_rhou*dt)/rho
-        self.w[:,:]   = (rhow+self.ddt_rhow*dt)/rho
+        self.u[:,:]   = (rhou+self.ddt_rhou*dt)/self.rho[:,:]
+        self.w[:,:]   = (rhow+self.ddt_rhow*dt)/self.rho[:,:]
+        # Note that the flow uses density from last step in variables rhou and
+        # rhow, and the density in the next step in self.rho[:,:]
 
         # Apply boundary conditions before calculating temperature and pressure
         self.set_boundary_conditions()
         self.P[:,:] = (self.gamma-1)*e 
-        self.T[:,:] = (self.gamma-1)*self.mymu_kB*e/rho
+        self.T[:,:] = (self.gamma-1)*self.mymu_kB*e/self.rho[:,:]
 
         return dt
     # ------------------------------------------------------------------------ #
@@ -160,14 +162,14 @@ class convection2D:
         @ nr - number of perturbation "blobs" (experimental above default nr = 1)
         """
         nr *= 2
-        x_position = np.arange(1,nr,2)*1/nr     # x position of blobs
+        x_position = np.arange(1,nr,2)/nr     # x position of blobs
         alt_sign = np.ones(ceil(nr/2)) # array with alternating signs
                                        # to get neg and pos perturbations
-        if nr != 2:                    # if more than one blob
+        if nr != 2:                    # only if more than one blob
             alt_sign[0::2] = -1
         
-        sigma_x = 8e5   # Equal standard deviations for circular blobs
-        sigma_y = 8e5
+        sigma_x = 1e6   # Equal standard deviations for circular blobs
+        sigma_y = 1e6
         mean_y = self.ymax/2    # Place blobs in the midle vertically
         xx,yy = np.meshgrid(self.x,self.y)  # simple mesh of computational volume
 
@@ -175,7 +177,10 @@ class convection2D:
             mean_x = self.xmax*scale          # place blob according to nr
             perturbation = np.exp(-0.5*((xx-mean_x)**2/sigma_x**2\
                             +(yy-mean_y)**2/sigma_y**2))
-            self.T += 0.7*Sun.T_photo*perturbation*alt_sign[i]
+            # Add the perturbation to the initial temperature,
+            # with amplitude based on the the surface temperature,
+            # and alternating sign if more than one blob:
+            self.T += 0.5*Sun.T_photo*perturbation*alt_sign[i]
 
     def get_timestep(self):
         """
@@ -296,43 +301,56 @@ class convection2D:
         res[neg_id] = diff_neg[neg_id]
 
         return res
-
     # ------------------------------------------------------------------------ #
     # ------------------------------- SANITY --------------------------------- #
     def sanity_initial_conditions(self):
         """ Simple sanity test to check the initial vertical gradients """
+        # Dictionary with matplotlib configurations
+        rcconfig = {'font.size'             : 16.0,
+                    'text.usetex'           : True,
+                    'text.latex.preamble'   : ('\\usepackage{physics}','\\usepackage{siunitx}'),
+                    'figure.figsize'        : (14,8),
+                    'figure.constrained_layout.use'     :True,
+                    'figure.constrained_layout.h_pad'   :0.07,
+                    'figure.constrained_layout.w_pad'   :0.05,
+                    'figure.titlesize'      : 'xx-Large',
+                    'path.simplify'         : True}
+        with plt.rc_context(rc = rcconfig):
+            plt.style.use('bmh')
+            T1D = self.T[:,int(self.nx/2)]
+            P1D = self.P[:,int(self.nx/2)]
+            e1D = self.e[:,int(self.nx/2)]
+            rho1D = self.rho[:,int(self.nx/2)]
+            y = self.y
 
-        T1D = self.T[:,int(self.nx/2)]
-        P1D = self.P[:,int(self.nx/2)]
-        e1D = self.e[:,int(self.nx/2)]
-        rho1D = self.rho[:,int(self.nx/2)]
-        y = self.y
+            fig, ax = plt.subplots(2,2,sharey='all')
+            ax[0,0].set_ylabel(r'$y [m]$')
+            ax[1,0].set_ylabel(r'$y [m]$')
 
-        fig, ax = plt.subplots(2,2,sharey='all')
-        ax[0,0].set_ylabel(r'$y [m]$')
-        ax[1,0].set_ylabel(r'$y [m]$')
+            ax[0,0].set_title('Temperature')
+            ax[0,0].set_xlabel(r'$T [K]$')
+            ax[0,0].plot(T1D,y)
 
-        ax[0,0].set_title('Temperature')
-        ax[0,0].set_xlabel(r'$T [K]$')
-        ax[0,0].plot(T1D,y)
+            ax[0,1].set_title('Pressure')
+            ax[0,1].set_xlabel(r'$P [Pa]$')
+            ax[0,1].plot(P1D,y)
 
-        ax[0,1].set_title('Pressure')
-        ax[0,1].set_xlabel(r'$P [Pa]$')
-        ax[0,1].plot(P1D,y)
+            ax[1,0].set_title('Internal energy')
+            ax[1,0].set_xlabel(r'$e [J m^{-3}]$')
+            ax[1,0].plot(e1D,y)
 
-        ax[1,0].set_title('Internal energy')
-        ax[1,0].set_xlabel(r'$e [J m^{-3}]$')
-        ax[1,0].plot(e1D,y)
-
-        ax[1,1].set_title('Density')
-        ax[1,1].set_xlabel(r'$\rho [kg m^{-3}]$')
-        ax[1,1].plot(rho1D,y)
-        plt.show()
-        plt.close('all')
+            ax[1,1].set_title('Density')
+            ax[1,1].set_xlabel(r'$\rho [kg m^{-3}]$')
+            ax[1,1].plot(rho1D,y)
+            plt.show()
+            plt.close('all')
 
 if __name__ == '__main__':
-    BoX = convection2D(initialise=False)
-    viz = FVis3.FluidVisualiser(fontsize=20)
+    BoX = convection2D()
+    viz = FVis3.FluidVisualiser(fontsize=17)
+
+    # In the following are a quick and dirty way of making the code do different
+    # operations or actions utilizing command line arguments:
 
     # Setup simulation configurations:
     extent = [0,BoX.xmax/1e6,0,BoX.ymax/1e6] # extent of axis in [Mm]
@@ -359,8 +377,8 @@ if __name__ == '__main__':
         endtime = 60
         perturb = False
         sim_fps = 1.0
-        name_app = 'sanity_'
-        folder = 'sanity'
+        name_app = 'sanity_endtime_'+str(endtime)+'_'
+        folder = 'sanity_'+str(endtime)
         subtitle = 'hydrostatic equilibrium over '\
                 +str(endtime)+' seconds'
 
@@ -370,11 +388,10 @@ if __name__ == '__main__':
         perturb = True
         sim_fps = 1.0
         name_app = 'basic_endtime_'+str(endtime)
-        folder = 'basic_'+str(nr)+'_blob_endtime_'+str(endtime)
+        folder = 'basic_endtime_'+str(endtime)
         subtitle = 'single positive perturbation over '\
                 +str(endtime)+' seconds'
 
-    #folder += '_lowpert'
     # Run simulation, or load data
     if not 'load' in sys.argv:  # unless given load cmd, run save data method
         BoX.initialise(perturb=perturb,nr=nr)
@@ -402,7 +419,7 @@ if __name__ == '__main__':
         # Quick check used during implementation of initial conditions
         BoX.sanity_initial_conditions()
 
-    if 'animate' in sys.argv:  # Produce 2D animation primary variables, default T
+    if 'animate' in sys.argv:  # 2D animation primary variables, default only T
         vid_time = 10          # [s]
         vid_fps = endtime*sim_fps/vid_time
 
@@ -414,17 +431,18 @@ if __name__ == '__main__':
             var_names = ['T','P','rho','e','u','w'] # all variable names
         
         if 'flux' in sys.argv:  # Animate horizontally averaged energy flux
-            if not 'flux' in title:
-                title = 'Horizontally averaged energy flux,\n'+subtitle
+            
+            title = 'Horizontally averaged energy flux,\n'+subtitle
             viz.animate_energyflux(save=True,video_name=name_app+'flux',title=title,\
                                     video_fps=vid_fps,units={'Lx':'Mm','Lz':'Mm'},\
                                     folder=folder,extent=extent)
-        else:                   # If not flux, animate primary variables
+
+        else:   # If not flux, animate primary variables
             for var in var_names:
                 title = 'Animated '+var+', '+subtitle
                 viz.animate_2D(var,save=True,video_name=name_app+var,title=title,\
                                 video_fps=vid_fps,units={'Lx':'Mm','Lz':'Mm'},\
-                                folder=folder,extent=extent,height=7)
+                                folder=folder,extent=extent,cbar_aspect=0.05)
 
     if not 'no_del' in sys.argv:
         viz.delete_current_data()   

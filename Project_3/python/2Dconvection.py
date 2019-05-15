@@ -387,7 +387,7 @@ if __name__ == '__main__':
         endtime = 300
         perturb = True
         sim_fps = 1.0
-        name_app = 'basic_endtime_'+str(endtime)
+        name_app = 'basic_endtime_'+str(endtime)+'_'
         folder = 'basic_endtime_'+str(endtime)
         subtitle = 'single positive perturbation over '\
                 +str(endtime)+' seconds'

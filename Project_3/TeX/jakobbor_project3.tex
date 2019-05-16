@@ -5,7 +5,7 @@
 
 %%%%%%%%%%% Own packages
 %\begin{•}
-\usepackage[a4paper, vmargin=0.8in,hmargin=0.4in]{geometry}
+\usepackage[a4paper, vmargin=0.75in,hmargin=0.4in]{geometry}
 \usepackage{multicol}
 \usepackage{lipsum}
 % Spacing
@@ -48,8 +48,8 @@
 
 % Listsings and items
 \usepackage{natbib}
-\bibliographystyle{humannat}
-\renewcommand{\bibsection}{\large \textbf{References}}
+\bibliographystyle{dinat}
+\renewcommand{\bibsection}{\textbf{\Large References}}
 \usepackage[shortlabels]{enumitem}
 %\setenumerate{wide,labelwidth=!, labelindent=2pt}
 \usepackage{varioref}
@@ -134,17 +134,18 @@ i \in [0,nx-1]
 j \in [0,ny-1].
 \end{aligned}
 \end{equation*}
-Due to the way matplotlib orients axes in figures we define our grid in such a way that index $j=0$ (which is at the top in our 2D matrix/array in python) is at the bottom of the computational volume, and $j=ny-1$ to be at the surface. A general variable is then expressed using the cells where we discretize the time by $n$ and $\Delta t$ from some zero time $t_0=0$, as 
+Due to the way matplotlib orients axes in figures we define our grid in such a way that index $j=0$ (which is at the top in our 2D matrix/array in python) is at the bottom of the computational volume, and $j=ny-1$ to be at the surface. A general variable is then expressed using the cells as 
 \begin{align*}
 \phi_{ij}^n &= \phi\qty(x_i,y_j,t_n)
 \\
 t_n &= t_0 + n \Delta t.
 \end{align*}
+where we discretize the time by $n$ and $\Delta t$ from some zero time $t_0=0$,
 
 \subsection{Assumptions}\label{subsec:Intro/Assumptions}
 In the initial implementation of the system we assume that everything is in hydrostatic equilibrium. This way we can set up initial conditions and test our system in a simplified situation, before invoking convection through a Gaussian perturbation in the initial temperature. This will be further elaborated in \cref{subsec:Governing/Initial values,subsubsec:Method/Gaussian perturbation}.
 
-We assume the plasma to be an ideal gas with mean molecular weight $\mu = 0.61$.
+We assume the plasma to be an ideal gas with constant mean molecular weight $\mu = 0.61$. Compared to our assumptions from earlier projects the ideal gas assumption is more accurate here as we are so close to the surface. Here the density is much lower, and most of the particles should be mono-atomic hydrogen.
 
 In addition we assume a constant gravitational acceleration over the hole computational volume, pointing towards the center of the star
 \begin{equation*}
@@ -163,23 +164,17 @@ where $G$ is the gravitational constant. As the box is so small and far from the
 %\begin{}
 
 \subsection{The System of Hydrodynamic Differential Equations}\label{subsec:Gov/Hydrodynamic eqs.}
-Our hydrodynamical system is governed by three main equations.
-\paragraph{The continuity equation} or the conservation of mass, without sources or sinks defined as
-\begin{equation}
-\pdv{\rho}{t} + \div(\rho \va{u}) = 0.
+Our hydrodynamical system is governed by three main conservation equations. The continuity equation (or mass equation) without sources or sinks, the momentum equation including gravity but not the viscous stress tensor, and the energy equation, given in \cref{eq:Continuity eq,eq:Momentum eq,eq:Energy eq} respectively.
+\begin{align}
+\pdv{\rho}{t} + \div(\rho \va{u}) &= 0
 \label{eq:Continuity eq}
-\end{equation}
-\paragraph{The momentum equation} including gravity, but excluding the viscous stress tensor, defined as
-\begin{equation}
-\pdv{\rho\va{u}}{t} + \div(\rho\va{u}\va{u}) = - \grad{P}+\rho \va{g}.
+\\
+\pdv{\rho\va{u}}{t} + \div(\rho\va{u}\va{u}) &= - \grad{P}+\rho \va{g}
 \label{eq:Momentum eq}
-\end{equation}
-
-\paragraph{The energy equation} describing the internal energy of the system defined as
-\begin{equation}
-\pdv{e}{t} + \div(e\va{u}) = -P\div{\va{u}}.
+\\
+\pdv{e}{t} + \div(e\va{u}) &= -P\div{\va{u}}
 \label{eq:Energy eq}
-\end{equation}
+\end{align}
 
 We split the governing equations into components in $x$ and $y$ direction. By decomposing the velocity $\va{u} = (u,w)$ and gradient $\grad = \qty(\pdv{x},\pdv{y})$, we rewrite \cref{eq:Continuity eq,eq:Energy eq,eq:Momentum eq} into four equations\footnote{Bullet point 1; F.14 to F.17 in \cref{eq:F.14,eq:F.15,eq:F.16,eq:F.17}.}. First, the continuity equation becomes
 \begin{align}
@@ -284,9 +279,11 @@ e(y) &= \frac{P(y)}{(\gamma-1)} \label{eq:Initial e}
 \end{align}
 
 \subsection[Boundary Conditions]{Boundary Conditions\protect\footnote{Bullet point 3; Boundaries for $u$, $\rho$ and $e$.}}\label{subsec:Governing/Boundary}
+Let us adapt the the following index notation, $\disc{Q}$, where $n$ indicate the time step and $i,j$ indicate the position in the grid of the quantity $Q$.
+
 As our computational volume has discontinuous boundaries we have to apply some smart boundary conditions for our numerical approach to work. First we implement periodic horizontal boundary conditions. This way our volume is continuous in the $x$-direction. This is simple, and makes sense physically as we pretend there are neighboring <<boxes>> at either side of the computational volume. This condition is implemented through our numerical differential solvers, which will be discussed in \ref{subsec:Method/Schemes}, and will not be elaborated further as it's quite elementary.
 
-The vertical boundaries are more challenging. As will be discussed in \cref{subsec:Method/Solving equations}, we only need boundary conditions for the four primary variables ($\rho,\,e,\,u,\,w$). In the following, if not stated otherwise, each vertical boundaries are described by indices $i\in[0,\,nx-1]$ and $j = 0$ for bottom and $j=ny-1$ for the surface.
+The vertical boundaries are more challenging. As will be discussed in \cref{subsec:Method/Solving equations}, we only need boundary conditions for the four primary variables ($\rho,\,e,\,u,\,w$). In the following, if not stated otherwise, each vertical boundary are described by indices $i\in[0,\,nx-1]$ and $j = 0$ for bottom and $j=ny-1$ for the surface, and are used for all times $n$.
 
 The vertical velocity $w$ at the bottom and top of our box should be zero. As we are using the continuity equation (or conservation of mass) without sources or sinks this has to be true to prevent mass from leaking out into the photosphere and in through the bottom of the box.
 \begin{equation}
@@ -294,7 +291,7 @@ w_{i,j} = 0.
 \label{eq:Boundary w}
 \end{equation}
 
-Also, the vertical gradient of the horizontal velocity $u$ must be zero, for the same reasons as for the vertical velocity. To find an expression for $u_{i,j}$ at the boundary we use the forward and backwards approximations for the partial derivative and solve for $u_{i,j}$ (as the vertical boundaries should not be periodic we cannot use central differentiation here)
+Also, the vertical gradient of the horizontal velocity $u$ must be zero at the boundary, for the same reasons as for the vertical velocity. To find an expression for $u_{i,j}$ at the boundary we use the forward and backwards approximations for the partial derivative and solve for $u_{i,j}$ (as the vertical boundaries should not be periodic we cannot use central differentiation here)
 \begin{align*}
 \disc{\pdv{u}{y}} &= \frac{-u_{i,j+2}+4u_{i,j+1}-3u_{i,j}}{2\Delta y}=0
 \\
@@ -310,7 +307,7 @@ u_{i,ny-1} &= \frac{4u_{i,ny-2}-u_{i,ny-3}}{3}.
 \label{eq:Boundary u}
 \end{equation}
 
-Lastly we need boundary conditions for the energy and density. These are heavily coupled, seen through the equations of state, and are less intuitive than the flow. Here we utilize that the system must be in hydrostatic equilibrium around the border. Through the equations of state and \cref{eq:Hydro equi} we find an expression for the vertical gradient of the energy as
+Lastly we need boundary conditions for the energy and density. These are heavily coupled, seen through the equations of state, and are less intuitive than the flow. Here we utilize that the system must be in hydrostatic equilibrium along the border. Through the equations of state and \cref{eq:Hydro equi} we find an expression for the vertical gradient of the energy as
 \begin{align*}
 \pdv{P}{y} &= (\gamma-1) \pdv{e}{y} = -\rho g_y
 \\
@@ -333,7 +330,7 @@ e_{i,ny-1} &= \frac{4e_{i,ny-2}-e_{i,ny-3}}{3 + 2\Delta y g_y \frac{\mu m_u}{k_B
 \end{aligned}
 \label{eq:Boundary e}
 \end{equation}
-Notice the slight differences in the denominator of the two expressions.
+Notice the slight differences in signs in the denominator of the two expressions.
 
 With values for the energy at the boundary, we can again use the equations of state to find the density
 \begin{equation}
@@ -351,8 +348,6 @@ With values for the energy at the boundary, we can again use the equations of st
 %   METHOD DESCRIPTION
 \section{Method Description}\label{sec:Method}
 %\begin{}
-Let us adapt the the following index notation, $\disc{Q}$, where $n$ indicate the time step and $i,j$ indicate the position in the grid of the quantity $Q$.
-
 \subsection{Discretizing the Governing Equations}\label{subsec:Method/Discretizing}
 We have to discretize the equations in such a way that we can solve them numerically. From \cref{eq:F.14,eq:F.15,eq:F.16,eq:F.17} we expand the velocity terms using the product rule (as the flow is not constant). Here we list the dicretized equations, these expressions are incorporated into the algorithm in \ref{subsec:Method/Solving equations} after we discuss the numerical methods used to find the differentials in \cref{subsec:Method/Schemes}.
 % Here we write out how this is done for the vertical momentum and energy in \cref{eq:F.16,eq:F.17}, and list the expressions used for \cref{eq:F.14,eq:F.15} which are given in the problem set.
@@ -368,8 +363,7 @@ We have to discretize the equations in such a way that we can solve them numeric
 &\phantom{{}=1} - \disc{u}\disc{\pdv{\rho u}{x}} - \disc{w}\disc{\pdv{\rho u}{y}} \notag \\
 &\phantom{{}=1} - \disc{\pdv{P}{y}}
 \label{eq:Disc rhou}
-\end{align}%
-\begin{align}
+\\
 \qty[\pdv{\rho w}{t}]_{i,j}^n &=- \qty[\rho w]_{i,j}^n\qty(\qty[\pdv{w}{y}]_{i,j}^n + \qty[\pdv{u}{x}]_{i,j}^n) \notag\\
 &\phantom{{}=1}- \qty[w]_{i,j}^n\qty[\pdv{\rho w}{y}]_{i,j}^n - [u]_{i,j}^n\qty[\pdv{\rho w}{x}]_{i,j}^n \notag\\
 &\phantom{{}=1}- \qty[\pdv{P}{y}]_{i,j}^n + \qty[\rho g_y]_{i,j}^n.
@@ -432,7 +426,7 @@ Q_{i,j}^{n+1} &= Q_{i,j}^{n} + \disc{\pdv{Q}{t}}\Delta t
 given that we have the time derivative at the current time step. 
 
 \subsection{Solving the Equations Numericaly}\label{subsec:Method/Solving equations}
-With the initial quantities established we are ready to lay out the algorithm for solving our system. Here we will directly follow the code in the \textit{hydro\_solver} method in \textit{{2Dconvection.py}}, which is the numerical solver in use. The goal of this algorithm is to evolve each primary variables one step in time, and use the new values to also update the temperature and pressure in the next time step.
+With the initial quantities established we are ready to lay out the algorithm for solving our system. Here we will directly follow the code in the \textit{hydro\_solver} method in \textit{{2Dconvection.py}}, which is the numerical solver in use. The goal of this algorithm is to evolve each primary variable one step in time, and use the new values to also update the temperature and pressure in the next time step.
 %In the first time step we know each variables value in the hole volume from the initial conditions.
 \begin{enumerate}
 \item We first find the direction of flow for the hole box, which is in use in all the following upwind differentials. We do this once at the start of each integration loop to save computation time.
@@ -464,9 +458,9 @@ T_{i,j}^{n+1} &= (\gamma-1)e_{i,j}^{n+1} \frac{\mu m_u }{k_B\rho_{i,j}^{n+1}}.
 \subsubsection[Example for $e$]{Example for $e$\protect\footnote{Bullet point 2; Algortihm for $e_{i,j}^{n+1}$, with differentiation method. Why answered in \cref{subsec:Method/Schemes}.}}\label{subsubsec:Method/Example w and e}
 As an example, we will lay out the algorithm for calculating the energy after initialization.
 \begin{enumerate}
-\item Find flow directions over hole grid.
+\item Find flow directions over the hole grid.
 
-\item Find the time-derivative of energy using \cref{eq:Disc e}. Here all the terms in the first two lines of the equation are calculated using central differencing, \cref{eq:Central}, and the two terms in the third and last line using upwind differencing, \cref{eq:Upwind}.
+\item Find the time-derivative of energy using \cref{eq:Disc e}. Here all the terms in the first two lines of the equation are calculated using central differencing, \cref{eq:Central}, and the two terms in the third line using upwind differencing, \cref{eq:Upwind}.
 
 \item Find optimal time step based on all time-derivatives, $\Delta t$, and evolve the energy to the next value in time $n+1$ using \cref{eq:Q^n+1}.
 \end{enumerate}
@@ -502,13 +496,13 @@ Then the method for applying the boundary conditions were implemented. Here the 
 
 The last step before we implemented the hydrodynamical solver was to find the optimal time step discussed in \cref{subsubsec:Method/Forward time}. This is done in a similar way as we did in the previous term projects. For efficiency we included a few contingencies. To remove possibilities of zero divisions we removed all cases of infinity in the calculation of $\delta$, and made it strictly positive. In addition, to prevent the calculation to go too slow we implement a minimum time step of $\Delta t = \SI{1e-7}{\s}$. For the hydrostatic case where the relative change in variables are very low we also force a max time step of $\Delta t = \SI{0.1}{\s}$.
 
-With these implementations in place we started working on the solver itself, which is covered in detail in \cref{subsec:Method/Solving equations}. As mentioned, here we really had mind the order of operations, which is covered in said section. To sum up, it's important that we calculate the energy and density first. Then the flow, using appropriate values for the density in the denominator and numerator as demonstrated in \cref{eq:w^n+1}. Next we apply the boundary conditions, importantly \textit{before} calculations of temperature and pressure.
+With these implementations in place we started working on the solver itself, which is covered in detail in \cref{subsec:Method/Solving equations}. As mentioned, here we really had to mind the order of operations, which is covered in said section. To sum up, it's important that we calculate the energy and density first. Then the flow, using appropriate values for the density in the denominator and numerator as demonstrated in \cref{eq:w^n+1}. Next we apply the boundary conditions, importantly \textit{before} calculations of temperature and pressure.
 
-With the completed solver we test the code against our main benchmark, hydrostatic equilibrium\footnote{Sanity test cmds; \textit{sanity animate}}. Here we run the simulation over \SI{60}{\s}, with unperturbed initial conditions. As we know, the hydrodynamical system should be unchanging when it's in hydrostatic equilibrium, so if we have done everything right we should have a static situation. As the system is so unstable this is close to impossible to get perfect, but we  settle with a low tolerance for instability.
+With the completed solver we test the code against our main benchmark, hydrostatic equilibrium\footnote{Sanity test cmds; \textit{sanity animate}}. Here we run the simulation over \SI{60}{\s}, with unperturbed initial conditions. As we know, the hydrodynamical system should be unchanging when it's in hydrostatic equilibrium, so if we have done everything right we should have a static situation. As the system is so unstable this is close to impossible to get perfect, but we  settle with a low tolerance for instability. This is actually easier to control by studying the vertical velocity distribution than the temperature.
 
 We are now finally ready to implement the perturbation in the initial conditions as discussed in \ref{subsubsec:Method/Gaussian perturbation}, and run the final simulations. In the initial implementation of this code, we only made a single positive perturbation in the middle of the computational volume. This way we could test that the method worked as intended, as well as how to make it better or more interesting, before extending the method to create arbitrary many alternating positive and negative perturbations along the x-direction.
 
-The last addition to the code is animating the convective flux through the volume\footnote{Bullet point 7; Convective flux for each depth.}. This is done using the provided module. We choose to look at the averaged convective flux through each <<cross section>> of the volume in the vertical direction. This way we can see at which depths, and at what times, most of the energy transportation is happening. This is done as
+The last addition to the code is animating the convective flux through the volume\footnote{Bullet point 7; Convective flux for each depth. Cmds; \textit{basic flux animate} or \textit{snap}.}. This is done using the provided module. We choose to look at the averaged convective flux through each <<cross section>> of the volume in the vertical direction. This way we can see at which depths, and at what times, most of the energy transportation is happening. This is done as
 \begin{equation}
 \qty[F_C]_{j}^{n} = \frac{\sum_i \qty[e\cdot w]_{i,j}^{n}}{nx}
 \label{eq:FC_j}
@@ -520,58 +514,19 @@ where we average over all the horizontal cells for each $j$. We could also look 
 %  CONCLUSION
 \section{Conclusion and Final Result}\label{sec:Conclusion}
 %\begin{}
-The final result from our simulations are movies
-%\footnote{Four movies included in the delivery; sanity test \textit{sanity\_endtime\_60\_T.mp4}, basic perturbation \textit{basic\_endtime\_300\_T.mp4}, complex perturbation \textit{viz\_5\_blobs\_endtime\_450.mp4} and finally the horizontally averaged vertically energy flux in \textit{basic\_endtime\_300\_flux.mp4}.}
- of the 2D distribution of the different variables, we choose to focus on the temperature. To discuss the results here we include snapshots from the movies at specific times. Note that for most of the following discussion we could have chosen to focus on the pressure and energy, instead of temperature and density, as these quantities are so linearly coupled through the equations of state. 
+The final result from our simulations are movies of the 2D distributions of the different variables, we choose to focus on the temperature. To discuss the results here we include snapshots from the movies at specific times. Note that for most of the following discussion we could have chosen to focus on the pressure and energy, instead of temperature and density, as these quantities are so linearly coupled through the equations of state. 
 
 In the movies and snapshots we have tried to reach a middle ground between fontsize and arrow scale/density in order to show the results as clearly as possible at all times through the simulation. We chose to use quite dense and small arrow-scales in order to display the convection cells detailed, while still being able to run the simulation far enough that we could see where it broke down. Unfortunately this causes some of the arrows to be very small, especially in the beginning of the simulations, and it's even harder to see the directions in the still snapshots than in the movie. But with some physical intuition and expectations (and zoom if viewed digitally) there should be no problem interpreting the vector field. Note also that as our numerical approach is so unstable, we are not able to simulate the situation long enough for the distribution in the temperature to change much visibly. Instead we will interpret the results by looking at the induced velocity fields, which eventually would cause the distribution of the other variables to shift around. In the following we will talk about how the parcel moves, as if it moved together with the velocity field.
 
-First, we will discuss the most basic case of perturbation\footnote{Movie cmds; \textit{basic animate}. Snapshots cmds; \textit{basic snap}.}, a single positive perturbation at the center of the distribution. We also include a more interesting perturbation\footnote{Movie cmds; \textit{viz animate}. Snapshots cmds; \textit{viz snap}.} in \cref{fig:viz_all}, but where all of the physics are the same. We will therefore discuss the simple case in detail, as there are less happening from frame to frame. Snapshots of the time evolution for the basic situation included in \cref{fig:Basic_t0,fig:Basic_t1,fig:Basic_t2,fig:Basic_t3}. Here we see the behavior as expected from a hot parcel of gas. At the same time we can study \cref{fig:flux_all}, and see how the convective flux is related to the 2D distributions.
+First, we will discuss the most basic case of perturbation\footnote{Movie cmds; \textit{basic animate}. Snapshots cmds; \textit{basic snap}.}, a single positive perturbation at the center of the distribution. We also include a more interesting perturbation\footnote{Movie cmds; \textit{viz animate}. Snapshots cmds; \textit{viz snap}.} in \cref{fig:viz_all}, but where all of the physics are the same. We will therefore discuss the simple case in detail, as there are less happening from frame to frame. Snapshots of the time evolution for the basic situation included in \cref{fig:Basic_t0,fig:Basic_t1,fig:Basic_t2,fig:Basic_t3}. Here we see the behavior as expected from a hot parcel of gas. At the same time we can study \cref{fig:flux_all} to see how the convective flux is related to the 2D distributions.
 
-In the first figure, \textbf{(a)}, we see the initial distribution after the perturbation is added. The bell shape increase in the temperature causes the contour-plot (or color-plot) to increase with a smooth bulk in the middle, following a normal distribution in both directions. Here we have close to zero velocity field, from the initialization. This is also evident in \cref{fig:flux_t0}, where we see a close to zero flux.
+In the first figure, \ref{fig:Basic_t0}, we see the initial distribution after the perturbation is added. The bell shaped increase in the temperature causes the contour-plot (or color-plot) to increase with a smooth bulk in the middle, following a normal distribution in both directions. Here we have close to zero velocity field, from the initialization. This is also evident in \cref{fig:flux_t0}, where we see a close to zero flux.
 
-As the initial velocity is set to zero (as seen in \textbf{(a)}), the velocity field takes some time to catch up, shown in \textbf{(b)} is the situation one minute in. We see how the increased temperature infers a positive flow in the vertical direction, consistent with how we know that hot gas rises in a surrounding cooler medium. This can be further explained by looking at the equations of state, where we know the temperature and density to be linearly inverse. The surrounding medium is initialized in hydrostatic equilibrium, so it will not be accelerated, and the velocity field stays zero. The hotter gas will have a lower density, and therefore is pulled down less by the gravitational attraction breaking the hydrostatic equilibrium. The lower gravitational pull causes a net positive acceleration, inducing a positive velocity field, which eventually results in the parcel rising through the medium. Here we are also close to the maximum in convective flux, as all the velocity is in positive direction. Note that the maximum is located below the middle depth, which is consistent with how the density (and therefore energy from equation of state) is higher at the bottom of the box.
+As the initial velocity is set to zero (as seen in \ref{fig:Basic_t0}), the velocity field takes some time to catch up, shown in \ref{fig:Basic_t1} is the situation one minute in. We see how the increased temperature infers a positive flow in the vertical direction, consistent with how we know that hot gas rises in a surrounding cooler medium. This can be further explained by looking at the equations of state, where we know the temperature and density to be linearly inverse. The surrounding medium is initialized in hydrostatic equilibrium, so it will not be accelerated, and the velocity field stays zero. The hotter gas will have a lower density, and therefore is pulled down less by the gravitational attraction breaking the hydrostatic equilibrium. The lower gravitational pull causes a net positive acceleration, inducing a positive velocity field, which eventually results in the parcel rising through the medium. Here we are also close to the maximum in convective flux in \cref{fig:flux_t1}, as all the velocity is in positive direction. Note that the maximum is located below the middle depth, which is consistent with how the density (and therefore energy from equation of state) is higher at the bottom of the box.
 
-Then, at time $02:15$ in \textbf{(c)}, the parcel has reached the surface, which is consistent with hot granules as we observe them on the sun. The hot gas will radiate away energy, and so is cooled off. Here we see how the velocity field start getting a horizontal component near the surface. This is caused by the hot gas still rising below it, pushing the cooled gas to each side. The velocity field is still mostly in the middle and the upper part of the parcel. This is consistent with \cref{fig:flux_t2}, where see the maximum of the vertical flux moving to a higher $y$-value.
+Then, at time $02:15$ in \ref{fig:Basic_t2}, the parcel has reached the surface, which is consistent with hot granules as we observe them on the sun. The hot gas will radiate away energy, and so is cooled off. Here we see how the velocity field start getting a horizontal component near the surface. This is caused by the hot gas still rising below it, pushing the cooled gas to each side. The velocity field is still mostly in the middle and the upper part of the parcel. This is consistent with \cref{fig:flux_t2}, where we see the maximum of the vertical flux moving to a higher $y$-value.
 
-Finally in \textbf{(d)}, the convection circle is completed. Here the cooled off gas falls back down, by the same argument we used for it rising initially, only reversed. The cooler gas has a higher density, and is therefore accelerated down again. Here it is warmed back up to the surrounding temperature at the bottom of the computational volume. The cooled gas still falling above it causes horizontal velocity to each side eventually rejoining the velocity field in the middle which is still in positive vertical direction. The averaged vertical flux is all negative at this point, as there are so many more cells with a negative vertical flow than positive. If we were able to simulate the situation for longer, we would see how the convective flux start changing back to being positive. This process will oscillate back and forth from being negative to positive, as parcels rise and falls back down. From the movie we see how the flux is starting to grow again after the last snapshot.\footnote{The delivery includes 6 movies; the sanity test, two 2D animations of the basic perturbation for two endtimes together with corresponding videos of the flux, and last a animation of the case with five perturbations. The shorter videos are discussed in this paper, while in the longer ones the cyclic behavior of the flux is visible as well as how the 2D distribution becomes unstable.}
-
-
-% BASIC FIGURE
-\begin{figure*}
-\centering
-\caption{Distribution of temperature shown in colors, velocity vector field shown as arrows. \Cref{fig:Basic_t0,fig:Basic_t1,fig:Basic_t2,fig:Basic_t3} shows the time evolution of the system. Initial conditions are perturbed with a single positive circular Gaussian perturbation, which acts as a parcel of hot gas rising through the medium. The hot pocket eventually reach the surface and cools down, before it is pushed to the side and falls back down, creating a 2D convection cell. Further discussion of the results in \cref{sec:Conclusion}.}
-\label{fig:Basic_all}
-	\begin{subfigure}[t]{\linewidth}
-	\centering
-	\includegraphics[width=\linewidth]{{../results/basic/snapshots/basic_endtime_300_snapshot_t1.1}.pdf}
-	\caption{The initial distribution, before the perturbation give non-zero velocity. The increased temperature is visible as the bulk in the y-direction. Notice the zero (or close to zero) value of the velocity field over the hole volume.}
-	\label{fig:Basic_t0}
-	\end{subfigure}
-	
-	\begin{subfigure}[t]{\linewidth}
-	\centering
-	\includegraphics[width=\linewidth]{{../results/basic/snapshots/basic_endtime_300_snapshot_t60.5}.pdf}
-	\caption{One minute into the simulation. Here we see the effects of the hot parcel, giving rise to positive vertical flow in the center of the box pushing the parcel towards the surface.}
-	\label{fig:Basic_t1}
-	\end{subfigure}
-
-	\begin{subfigure}[t]{\linewidth}
-	\centering
-	\includegraphics[width=\linewidth]{{../results/basic/snapshots/basic_endtime_300_snapshot_t135.3}.pdf}
-    \caption{$02:15$ into the simulation and we can see how the medium is pushed out to each side horizontally when the parcel reaches the surface. This is as expected, as we know these can be observed as granules on the Sun.}
-	\label{fig:Basic_t2}
-	\end{subfigure}	
-	
-    \begin{subfigure}[t]{\linewidth}
-	\centering
-	\includegraphics[width=\linewidth]{{../results/basic/snapshots/basic_endtime_300_snapshot_t285.059}.pdf}
-	\caption{The last snapshot from the simulation, at $04:45$. Here we see how the cooled gas that has been pushed to the sides falls back down. This process concludes the convection <<circle>>, and is visible in the pleasant circular velocity fields at both sides of central hot rising region.}
-	\label{fig:Basic_t3}
-	\end{subfigure}
-	
-\end{figure*}
-% END BASIC FIGURE
+Finally in \ref{fig:Basic_t3}, the convection circle is completed. Here the cooled off gas falls back down, by the same argument we used for it rising initially, only reversed. The cooler gas has a higher density, and is therefore accelerated down again. Here it is warmed back up to the surrounding temperature at the bottom of the computational volume. The cooled gas still falling above it causes horizontal velocity to each side eventually rejoining the velocity field in the middle which is still in positive vertical direction. The averaged vertical flux is all negative at this point, as there are so many more cells with a negative vertical flow than positive. If we were able to simulate the situation for longer, we would see how the convective flux start changing back to being positive. This process will oscillate back and forth from being negative to positive, as parcels rise and falls back down. From the movie we see how the flux is starting to grow again after the last snapshot.\footnote{The delivery includes 6 movies; the sanity test, two 2D animations of the basic perturbation for two endtimes together with corresponding videos of the flux, and last a animation of the case with five perturbations. The shorter videos are discussed in this paper, while in the longer ones the cyclic behavior of the flux is visible as well as how the 2D distribution becomes unstable.}
 
 % FLUX FIGURE
 \begin{figure*}
@@ -612,6 +567,42 @@ Finally in \textbf{(d)}, the convection circle is completed. Here the cooled off
 \end{figure*}
 % END FLUX FIGURE
 
+% BASIC FIGURE
+\begin{figure*}
+\centering
+\caption{Distribution of temperature shown in colors, velocity vector field shown as arrows. \Cref{fig:Basic_t0,fig:Basic_t1,fig:Basic_t2,fig:Basic_t3} shows the time evolution of the system. Initial conditions are perturbed with a single positive circular Gaussian perturbation, which acts as a parcel of hot gas rising through the medium. The hot pocket eventually reach the surface and cools down, before it is pushed to the side and falls back down, creating a 2D convection cell. Further discussion of the results in \cref{sec:Conclusion}.}
+\label{fig:Basic_all}
+	\begin{subfigure}[t]{\linewidth}
+	\centering
+	\includegraphics[width=\linewidth]{{../results/basic/snapshots/basic_endtime_300_snapshot_t1.1}.pdf}
+	\caption{The initial distribution, before the perturbation give non-zero velocity. The increased temperature is visible as the bulk in the y-direction. Notice the zero (or close to zero) value of the velocity field over the hole volume.}
+	\label{fig:Basic_t0}
+	\end{subfigure}
+	
+	\begin{subfigure}[t]{\linewidth}
+	\centering
+	\includegraphics[width=\linewidth]{{../results/basic/snapshots/basic_endtime_300_snapshot_t60.5}.pdf}
+	\caption{One minute into the simulation. Here we see the effects of the hot parcel, giving rise to positive vertical flow in the center of the box pushing the parcel towards the surface.}
+	\label{fig:Basic_t1}
+	\end{subfigure}
+
+	\begin{subfigure}[t]{\linewidth}
+	\centering
+	\includegraphics[width=\linewidth]{{../results/basic/snapshots/basic_endtime_300_snapshot_t135.3}.pdf}
+    \caption{$02:15$ into the simulation and we can see how the medium is pushed out to each side horizontally when the parcel reaches the surface. This is as expected, as we know these can be observed as granules on the Sun.}
+	\label{fig:Basic_t2}
+	\end{subfigure}	
+	
+    \begin{subfigure}[t]{\linewidth}
+	\centering
+	\includegraphics[width=\linewidth]{{../results/basic/snapshots/basic_endtime_300_snapshot_t285.059}.pdf}
+	\caption{The last snapshot from the simulation, at $04:45$. Here we see how the cooled gas that has been pushed to the sides falls back down. This process concludes the convection <<circle>>, and is visible in the pleasant circular velocity fields at both sides of central hot rising region.}
+	\label{fig:Basic_t3}
+	\end{subfigure}
+	
+\end{figure*}
+% END BASIC FIGURE
+
 % VIZ FIGURE
 \begin{figure*}
 \centering
@@ -649,33 +640,21 @@ Finally in \textbf{(d)}, the convection circle is completed. Here the cooled off
 % END VIZ FIGURE
 
 \subsection{Comments, Final Thoughts and Future Perspectives}\label{subsec:Conclusion/Comments}
-In this project we have successfully written a 2D hydrodynamics code, able to visualize any of the involved quantities in an informative and beautiful way. We have studied a highly unstable system of partial differential equations, and how to solve them numerically using non-trivial, but still simplistic, methods. The results helps us visualize the theory we've covered in lectures, so that we understand the simple form of 2D convection. As mentioned our model is not complete. lacks the viscous stress tensor  with many possible improvements, that would be interesting to try in the future. Some 
+In this project we have successfully written a 2D hydrodynamics code, able to visualize any of the involved quantities in an informative and beautiful way. We have studied a highly unstable system of partial differential equations, and how to solve them numerically using non-trivial, but still simplistic, methods. We have also gotten new and deeper insight into how coupled all these quantities are through the equations of state. The results has helped us visualize the theory we've covered in lectures, so that we understand the simple form of 2D convection.
 
-\subsubsection{Problems and Difficulties}
-During this project we've had few problems all in all. That doesn't say the different parts of the project haven't been difficult, but in a good way. Our biggest issue was in the very beginning of the project, whit a lot of information about the system and the problem to absorb. Here we had to figure out how to orient the system and the model in a physically, numerical and graphical sense. Through the direction of gravity and the vertical pressure gradient we established how the situation had to behave physically, and then translated that into numerical indexation in Python. Lastly we had to think about how this was handled by the provided visualization module, which flips the vertical axis. After obtaining good understanding of these concepts the rest of the project became much easier. It was then just a matter of writing the code in an ordered fashion, utilizing modules for as much as possible. After the full implementation was complete, following \cref{subsec:Method/Benchmarks}, the simulation worked as intended surprisingly fast with little to no bugs.
+We have learned more about boundary conditions, and how important they are for confined systems like this. The process of finding the correct boundary conditions were interesting and challenging, as we had little information to go on. This forced us to do a lot of healthy critical physical thinking. Also being able to test how slightly different \textit{wrong} boundaries changed the behavior of the system was educational.
 
-%
-%Boundary conditions, lacking information. But good forced thinking!
-%
-%Stress tensor, so no turbulence.
-%Internal friction.
-%
-%miss diffusion.
-%
-%central diff unconditional unstable
-%
-%higher order differential methods
-%
-%Use last temperature to update rho
-%
-%
-%Ideal gas, coupled variables. Good approximation at surface, low density!. 1 atomic particles in hydrogen.
-%Perturbation, unstable per default but system collects it self quickly. Perturbation in pressure as well? Velocity start at zero.
-%
-%Vertical velocity good test.
+We've had few problems all in all. That doesn't say the different parts of the project haven't been difficult, but in a good way. Our biggest issue was in the very beginning of the project, whit a lot of information about the system and the problem to absorb. Here we had to figure out how to orient the system and the model in a physically, a numerical and a graphical sense. Through the direction of gravity and the vertical pressure gradient we established how the situation had to behave physically, and then translated that into numerical indexation in Python. Lastly we had to think about how this was handled by the provided visualization module, which flips the vertical axis. After obtaining good understanding of these concepts the rest of the project became much easier. It was then just a matter of writing the code in an ordered fashion, utilizing modules for as much as possible. After the full implementation was complete, following \cref{subsec:Method/Benchmarks}, the simulation worked as intended surprisingly fast with little to no bugs.
 
-\subsubsection*{Acknowledgments}
-The author would like to thank Helle Bakke and Boris Vilhelm Gudiksen for an exciting and interesting course, with some inspiring lectures and projects. Lastly, a thanks to my colleagues for essential discussions around the implementation and interpretation of the results in all the terms projects, in particular Jon Kristian Dahl, Bernhard Nornes Lotsberg, Mats Ola Sand, Nils-Ole Strutzer and Håkon Tansem.
+As mentioned our model is not complete, as we are not able to simulate turbulence. This could be improved by including the viscous stress tensor in our governing equation for the momentum. The stress tensor governs internal friction in the dynamical system. The friction is present between neighboring flow streams of mass with different velocities. We can see how our current simulations struggles with this near the edges where the boundary conditions creates shock waves of unphsycial behavior, and where there are large relative differences in the velocity field over small areas as seen \cref{fig:viz_t3}. In addition we could include diffusion, as we know from the density gradient there should be some contribution from diffusion in our dynamical system. These inclusions are not trivial however, and would probably require some higher ordered numerical solvers. We could also have implement higher order solvers, both temporal and spatial, without the tensor or diffusion. If so the simulations would probably stay stable for longer, as especially the central differential method is unconditionally unstable.
+
+\vspace{0.2 cm}
+\noindent
+\textbf{\large Acknowledgments}
+
+The author would like to thank Helle Bakke and Boris Vilhelm Gudiksen for an exciting and interesting course, with some inspiring lectures and projects. Thanks to my colleagues for discussions during all the terms projects, in particular Jon Kristian Dahl, Bernhard Nornes Lotsberg, Mats Ola Sand, Nils-Ole Strutzer and Håkon Tansem.
+\vspace{0.2cm}
 
 \bibliography{ref3}
+
 \end{document}

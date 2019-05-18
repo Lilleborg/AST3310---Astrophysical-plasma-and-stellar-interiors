@@ -7,12 +7,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from math import ceil
-#from datetime import datetime
 
 import sys
 
-# from engine import stellar_engine,test_engine_1,test_engine_2
-# from star_core import my_stellar_core
 import Solar_parameters as Sun  # Holding different given parameters for the Sun
 
 # Reset my own matplotlib settings:

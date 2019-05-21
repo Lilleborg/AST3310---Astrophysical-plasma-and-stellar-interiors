@@ -526,46 +526,7 @@ As the initial velocity is set to zero (as seen in \ref{fig:Basic_t0}), the velo
 
 Then, at time $02:15$ in \ref{fig:Basic_t2}, the parcel has reached the surface, which is consistent with hot granules as we observe them on the sun. The hot gas will radiate away energy, and so is cooled off. Here we see how the velocity field start getting a horizontal component near the surface. This is caused by the hot gas still rising below it, pushing the cooled gas to each side. The velocity field is still mostly in the middle and the upper part of the parcel. This is consistent with \cref{fig:flux_t2}, where we see the maximum of the vertical flux moving to a higher $y$-value.
 
-Finally in \ref{fig:Basic_t3}, the convection circle is completed. Here the cooled off gas falls back down, by the same argument we used for it rising initially, only reversed. The cooler gas has a higher density, and is therefore accelerated down again. Here it is warmed back up to the surrounding temperature at the bottom of the computational volume. The cooled gas still falling above it causes horizontal velocity to each side eventually rejoining the velocity field in the middle which is still in positive vertical direction. The averaged vertical flux is all negative at this point, as there are so many more cells with a negative vertical flow than positive. If we were able to simulate the situation for longer, we would see how the convective flux start changing back to being positive. This process will oscillate back and forth from being negative to positive, as parcels rise and falls back down. From the movie we see how the flux is starting to grow again after the last snapshot.\footnote{The delivery includes 6 movies; the sanity test, two 2D animations of the basic perturbation for two endtimes together with corresponding videos of the flux, and last a animation of the case with five perturbations. The shorter videos are discussed in this paper, while in the longer ones the cyclic behavior of the flux is visible as well as how the 2D distribution becomes unstable.}
-
-% FLUX FIGURE
-\begin{figure*}
-\centering
-\caption{Horizontally averaged vertical energy flux of the basic perturbation situation in \cref{fig:Basic_all}, snapshots of corresponding times in \cref{fig:flux_t0,fig:flux_t1,fig:flux_t2,fig:flux_t3}. Here we see how the vertical energy transportation changes with the changes in velocity fields discussed in \cref{sec:Conclusion}. Note the large amplitude of the flux, this is caused by the very large value of $e$.}
-\label{fig:flux_all}
-
-\begin{subfigure}[t]{0.45\linewidth}
-\centering
-\includegraphics[width=\linewidth]{{../results/basic/snapshots/basic_endtime_300_snapshot_flux_t1.1}.pdf}
-\caption{Initial situation, close to hydrostatic equilibrium.}
-\label{fig:flux_t0}
-\end{subfigure}
-\quad
-\begin{subfigure}[t]{0.45\linewidth}
-\centering
-\includegraphics[width=\linewidth]{{../results/basic/snapshots/basic_endtime_300_snapshot_flux_t60.5}.pdf}
-\caption{Close to the maximum of the flux, at time ${01:00}$. Consistent with what we saw in \cref{fig:Basic_t1}, here we still only have positive vertical flow, causing a large positive vertical convective flux.}
-\label{fig:flux_t1}
-\end{subfigure}
-
-\vskip\baselineskip
-
-\begin{subfigure}[t]{0.45\linewidth}
-\centering
-\includegraphics[width=\linewidth]{{../results/basic/snapshots/basic_endtime_300_snapshot_flux_t135.3}.pdf}
-\caption{Two minutes and 15 seconds in and we see the maximum of the flux being moved to a higher $y$-value. Caused by the increase in velocity field, which increases in a circular path before it completes itself, as seen in \cref{fig:Basic_all}. Also, as the parcel rises through the medium, we get higher values of $e$ closer to the surface.}
-\label{fig:flux_t2}
-\end{subfigure}
-\quad
-\begin{subfigure}[t]{0.45\linewidth}
-\centering
-\includegraphics[width=\linewidth]{{../results/basic/snapshots/basic_endtime_300_snapshot_flux_t285.059}.pdf}
-\caption{Finally we have a minimum value of the flux, being negative at all depths. This is caused by the parcel falling back down at both sides of the rising pocket. Now the areas where negative flow is happening are so much larger than the positive part, and so the averaged flux across each depth is negative.}
-\label{fig:flux_t3}
-\end{subfigure}
-
-\end{figure*}
-% END FLUX FIGURE
+Finally in \ref{fig:Basic_t3}, the convection circle is completed. Here the cooled off gas falls back down, by the same argument we used for it rising initially, only reversed. The cooler gas has a higher density, and is therefore accelerated down again. Here it is warmed back up to the surrounding temperature at the bottom of the computational volume. The cooled gas still falling above it causes horizontal velocity to each side eventually rejoining the velocity field in the middle which is still in positive vertical direction. The averaged vertical flux is all negative at this point, as there are so many more cells with a negative vertical flow than positive. If we were able to simulate the situation for longer, we would see how the convective flux start changing back to being positive. This process will oscillate back and forth from being negative to positive, as parcels rise and falls back down. From the movie we see how the flux is starting to grow again after the last snapshot.\footnote{The delivery includes 7 movies; the sanity test (also for $w$), two 2D animations of the basic perturbation for two endtimes together with corresponding videos of the flux, and last a animation of the case with five perturbations. The shorter videos are discussed in this paper, while in the longer ones the cyclic behavior of the flux is visible as well as how the 2D distribution becomes unstable.}
 
 % BASIC FIGURE
 \begin{figure*}
@@ -602,6 +563,45 @@ Finally in \ref{fig:Basic_t3}, the convection circle is completed. Here the cool
 	
 \end{figure*}
 % END BASIC FIGURE
+
+% FLUX FIGURE
+\begin{figure*}
+\centering
+\caption{Horizontally averaged vertical energy flux of the basic perturbation situation shown in \cref{fig:Basic_all}, snapshots of corresponding times in \cref{fig:flux_t0,fig:flux_t1,fig:flux_t2,fig:flux_t3}. Here we see how the vertical energy transportation changes with the changes in velocity fields discussed in \cref{sec:Conclusion}. Note the large amplitude of the flux, this is caused by the very large value of $e$.}
+\label{fig:flux_all}
+
+\begin{subfigure}[t]{0.45\linewidth}
+\centering
+\includegraphics[width=\linewidth]{{../results/basic/snapshots/basic_endtime_300_snapshot_flux_t1.1}.pdf}
+\caption{Initial situation, close to hydrostatic equilibrium.}
+\label{fig:flux_t0}
+\end{subfigure}
+\quad
+\begin{subfigure}[t]{0.45\linewidth}
+\centering
+\includegraphics[width=\linewidth]{{../results/basic/snapshots/basic_endtime_300_snapshot_flux_t60.5}.pdf}
+\caption{Close to the maximum of the flux, at time ${01:00}$. Consistent with what we saw in \cref{fig:Basic_t1}, here we still only have positive vertical flow, causing a large positive vertical convective flux.}
+\label{fig:flux_t1}
+\end{subfigure}
+
+\vskip\baselineskip
+
+\begin{subfigure}[t]{0.45\linewidth}
+\centering
+\includegraphics[width=\linewidth]{{../results/basic/snapshots/basic_endtime_300_snapshot_flux_t135.3}.pdf}
+\caption{Two minutes and 15 seconds in and we see the maximum of the flux being moved to a higher $y$-value. Caused by the increase in velocity field, which increases in a circular path before it completes itself, as seen in \cref{fig:Basic_all}. Also, as the parcel rises through the medium, we get higher values of $e$ closer to the surface.}
+\label{fig:flux_t2}
+\end{subfigure}
+\quad
+\begin{subfigure}[t]{0.45\linewidth}
+\centering
+\includegraphics[width=\linewidth]{{../results/basic/snapshots/basic_endtime_300_snapshot_flux_t285.059}.pdf}
+\caption{Finally we have a minimum value of the flux, being negative at all depths. This is caused by the parcel falling back down at both sides of the rising pocket. Now the areas where negative flow is happening are so much larger than the positive part, and so the averaged flux across each depth is negative.}
+\label{fig:flux_t3}
+\end{subfigure}
+
+\end{figure*}
+% END FLUX FIGURE
 
 % VIZ FIGURE
 \begin{figure*}
